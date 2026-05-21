@@ -98,9 +98,14 @@ def reset_timeline():
     timeline = []
     return {"status": "timeline reset"}
 
+@app.get("/")
+def root():
+    return {"status": "Emotion Drift Backend Running"}
+
 @app.get("/health")
-def health_check():
+def health():
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
