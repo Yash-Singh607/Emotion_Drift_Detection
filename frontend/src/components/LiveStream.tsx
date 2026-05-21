@@ -26,7 +26,198 @@ const mapBackendEmotion = (backendEmotion: string, confidence: number, text: str
   const intensity = Math.round(confidence * 100);
   const lowerText = text.toLowerCase();
 
-  // 1. Check for high-priority keyword rules first
+  // A. Sarcasm Detection
+  const hasEllipsis = lowerText.includes('...');
+  const positiveWords = ['amazing', 'great', 'perfect', 'love', 'excellent', 'wow', 'wonderful', 'happy', 'solved', 'thanks'];
+  const negativeOps = [
+    'pending', 'delayed', 'delay', 'not working', 'issue', 'failed', 'stuck', 'error', 
+    'refund', 'nobody helped', 'unresolved', 'frustrated', 'exhausted', 'overwhelmed', 
+    'broken', 'unacceptable', 'bad', 'cancellation', 'poor', 'slow', 'horrible', 'waste'
+  ];
+  
+  const hasPositive = positiveWords.some(w => lowerText.includes(w));
+  const hasNegativeOp = negativeOps.some(w => lowerText.includes(w));
+  const hasRepeatedIssues = (lowerText.match(/issue/g) || []).length >= 2 || lowerText.includes('another issue') || lowerText.includes('issue again') || lowerText.includes('repeated');
+
+  const isSarcastic = (hasPositive && hasNegativeOp) || (hasPositive && hasEllipsis) || (hasEllipsis && hasNegativeOp) || hasRepeatedIssues;
+
+  if (isSarcastic && hasNegativeOp) {
+    return {
+      name: 'FRUSTRATED',
+      icon: 'sentiment_dissatisfied',
+      color: 'bg-error/80',
+      textClass: 'text-[#ffb4ab]',
+      borderClass: 'border-[#ffb4ab]/30',
+      glowClass: 'rgba(255, 180, 171, 0.25)',
+      isNegative: true,
+      intensity: 88
+    };
+  }
+
+  // B. Smart Emotion Overrides (runs under any confidence if these strong directives are present)
+  // 1. manager/escalate/legal -> ANGRY (HIGH RISK ESCALATION)
+  if (lowerText.includes('manager') || lowerText.includes('escalate') || lowerText.includes('legal') || lowerText.includes('supervisor')) {
+    return {
+      name: 'ANGRY',
+      icon: 'sentiment_very_dissatisfied',
+      color: 'bg-error',
+      textClass: 'text-error',
+      borderClass: 'border-error/30',
+      glowClass: 'rgba(255, 180, 171, 0.4)',
+      isNegative: true,
+      intensity: 99
+    };
+  }
+
+  // 2. refund + unacceptable -> ANGRY
+  if (lowerText.includes('refund') && lowerText.includes('unacceptable')) {
+    return {
+      name: 'ANGRY',
+      icon: 'sentiment_very_dissatisfied',
+      color: 'bg-error',
+      textClass: 'text-error',
+      borderClass: 'border-error/30',
+      glowClass: 'rgba(255, 180, 171, 0.4)',
+      isNegative: true,
+      intensity: 95
+    };
+  }
+
+  // 3. pending + payment/order -> CONFUSED
+  if (lowerText.includes('pending') && (lowerText.includes('payment') || lowerText.includes('order'))) {
+    return {
+      name: 'CONFUSED',
+      icon: 'sentiment_neutral',
+      color: 'bg-tertiary',
+      textClass: 'text-tertiary',
+      borderClass: 'border-tertiary/20',
+      glowClass: 'rgba(217, 119, 33, 0.2)',
+      isNegative: true,
+      intensity: 75
+    };
+  }
+
+  // 4. repeated delays/issues -> FRUSTRATED
+  const countDelays = (lowerText.match(/delay/g) || []).length;
+  const countIssues = (lowerText.match(/issue/g) || []).length;
+  const countErrors = (lowerText.match(/error/g) || []).length;
+  const countFailed = (lowerText.match(/failed/g) || []).length;
+  if (countDelays + countIssues + countErrors + countFailed >= 2 || lowerText.includes('repeated') || lowerText.includes('another issue') || lowerText.includes('multiple delays')) {
+    return {
+      name: 'FRUSTRATED',
+      icon: 'sentiment_dissatisfied',
+      color: 'bg-error/80',
+      textClass: 'text-[#ffb4ab]',
+      borderClass: 'border-[#ffb4ab]/30',
+      glowClass: 'rgba(255, 180, 171, 0.25)',
+      isNegative: true,
+      intensity: 85
+    };
+  }
+
+  // 5. overwhelmed + workload/deadlines -> OVERWHELMED
+  if (lowerText.includes('overwhelmed') && (lowerText.includes('workload') || lowerText.includes('deadline') || lowerText.includes('deadlines') || lowerText.includes('stress') || lowerText.includes('stressed'))) {
+    return {
+      name: 'OVERWHELMED',
+      icon: 'sentiment_very_dissatisfied',
+      color: 'bg-secondary/80',
+      textClass: 'text-[#e8c3ff]',
+      borderClass: 'border-[#e8c3ff]/30',
+      glowClass: 'rgba(221, 183, 255, 0.4)',
+      isNegative: true,
+      intensity: 88
+    };
+  }
+
+  // C. Low Confidence Fallback Heuristics
+  // Trigger if confidence is below 40%
+  if (confidence < 0.40) {
+    if (hasNegativeOp) {
+      if (['angry', 'mad', 'unacceptable', 'refund', 'nobody helped', 'unresolved'].some(w => lowerText.includes(w))) {
+        const isAngry = lowerText.includes('angry') || lowerText.includes('mad') || lowerText.includes('unacceptable');
+        return {
+          name: isAngry ? 'ANGRY' : 'FRUSTRATED',
+          icon: isAngry ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
+          color: isAngry ? 'bg-error' : 'bg-error/80',
+          textClass: isAngry ? 'text-error' : 'text-[#ffb4ab]',
+          borderClass: isAngry ? 'border-error/30' : 'border-[#ffb4ab]/30',
+          glowClass: isAngry ? 'rgba(255, 180, 171, 0.4)' : 'rgba(255, 180, 171, 0.25)',
+          isNegative: true,
+          intensity: 80
+        };
+      }
+
+      if (['overwhelmed', 'exhausted', 'tired', 'workload', 'deadlines'].some(w => lowerText.includes(w))) {
+        return {
+          name: 'OVERWHELMED',
+          icon: 'sentiment_very_dissatisfied',
+          color: 'bg-secondary/80',
+          textClass: 'text-[#e8c3ff]',
+          borderClass: 'border-[#e8c3ff]/30',
+          glowClass: 'rgba(221, 183, 255, 0.4)',
+          isNegative: true,
+          intensity: 78
+        };
+      }
+
+      if (['sad', 'upset', 'disappointed'].some(w => lowerText.includes(w))) {
+        return {
+          name: 'OVERWHELMED',
+          icon: 'sentiment_very_dissatisfied',
+          color: 'bg-secondary/80',
+          textClass: 'text-[#e8c3ff]',
+          borderClass: 'border-[#e8c3ff]/30',
+          glowClass: 'rgba(221, 183, 255, 0.4)',
+          isNegative: true,
+          intensity: 75
+        };
+      }
+
+      if (['pending', 'delayed', 'delay', 'issue', 'stuck', 'error', 'failed', 'not working'].some(w => lowerText.includes(w))) {
+        const isFrustrated = ['failed', 'stuck', 'error', 'not working'].some(w => lowerText.includes(w));
+        return {
+          name: isFrustrated ? 'FRUSTRATED' : 'CONFUSED',
+          icon: isFrustrated ? 'sentiment_dissatisfied' : 'sentiment_neutral',
+          color: isFrustrated ? 'bg-error/80' : 'bg-tertiary',
+          textClass: isFrustrated ? 'text-[#ffb4ab]' : 'text-tertiary',
+          borderClass: isFrustrated ? 'border-[#ffb4ab]/30' : 'border-tertiary/20',
+          glowClass: isFrustrated ? 'rgba(255, 180, 171, 0.25)' : 'rgba(217, 119, 33, 0.2)',
+          isNegative: true,
+          intensity: 70
+        };
+      }
+    }
+
+    // Default fallbacks if no specific negative operational keywords matched but we have base keywords
+    if (['stressed', 'overwhelmed', 'workload', 'tired'].some(w => lowerText.includes(w))) {
+      const isOverwhelmed = lowerText.includes('overwhelmed') || lowerText.includes('workload');
+      return {
+        name: isOverwhelmed ? 'OVERWHELMED' : 'STRESSED',
+        icon: isOverwhelmed ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
+        color: isOverwhelmed ? 'bg-secondary/80' : 'bg-secondary',
+        textClass: isOverwhelmed ? 'text-[#e8c3ff]' : 'text-[#ddb7ff]',
+        borderClass: isOverwhelmed ? 'border-[#e8c3ff]/30' : 'border-[#ddb7ff]/20',
+        glowClass: isOverwhelmed ? 'rgba(221, 183, 255, 0.4)' : 'rgba(221, 183, 255, 0.3)',
+        isNegative: true,
+        intensity: 75
+      };
+    }
+
+    if (['happy', 'resolved', 'thanks', 'good'].some(w => lowerText.includes(w))) {
+      return {
+        name: 'SATISFIED',
+        icon: 'sentiment_satisfied',
+        color: 'bg-primary',
+        textClass: 'text-primary',
+        borderClass: 'border-primary/20',
+        glowClass: 'rgba(192, 193, 255, 0.3)',
+        isNegative: false,
+        intensity: 75
+      };
+    }
+  }
+
+  // D. Strong base keyword checks (even under high confidence)
   if (lowerText.includes('extremely frustrated')) {
     return {
       name: 'FRUSTRATED',
@@ -53,42 +244,6 @@ const mapBackendEmotion = (backendEmotion: string, confidence: number, text: str
     };
   }
 
-  // overwhelmed + negative words -> escalation risk
-  const negativeWords = [
-    'bad', 'issue', 'terrible', 'delay', 'broken', 'failed', 'ridiculous', 'error', 
-    'unacceptable', 'refund', 'supervisor', 'not happy', 'not satisfied', 'not good', 
-    'frustrated', 'frustrating', 'frustration', 'angry', 'mad', 'upset', 'disappointed', 
-    'cancellation', 'poor', 'slow', 'horrible', 'waste'
-  ];
-  if (lowerText.includes('overwhelmed') && negativeWords.some(w => lowerText.includes(w))) {
-    return {
-      name: 'OVERWHELMED',
-      icon: 'sentiment_very_dissatisfied',
-      color: 'bg-secondary/80',
-      textClass: 'text-[#e8c3ff]',
-      borderClass: 'border-[#e8c3ff]/30',
-      glowClass: 'rgba(221, 183, 255, 0.4)',
-      isNegative: true,
-      intensity: Math.max(intensity, 85)
-    };
-  }
-
-  // angry/mad/ridiculous/unacceptable/terrible/delay/refund/supervisor
-  const highRiskKeywords = ['angry', 'mad', 'ridiculous', 'unacceptable', 'terrible', 'delay', 'refund', 'supervisor'];
-  if (highRiskKeywords.some(w => lowerText.includes(w))) {
-    return {
-      name: 'ANGRY',
-      icon: 'sentiment_very_dissatisfied',
-      color: 'bg-error',
-      textClass: 'text-error',
-      borderClass: 'border-error/30',
-      glowClass: 'rgba(255, 180, 171, 0.4)',
-      isNegative: true,
-      intensity: Math.max(intensity, 90)
-    };
-  }
-
-  // not happy/not satisfied/not good -> sadness/frustration, not neutral
   if (lowerText.includes('not happy') || lowerText.includes('not satisfied') || lowerText.includes('not good')) {
     return {
       name: 'FRUSTRATED',
@@ -102,63 +257,7 @@ const mapBackendEmotion = (backendEmotion: string, confidence: number, text: str
     };
   }
 
-  // 2. Fallback sentiment rules if backend confidence is below 40%
-  if (confidence < 0.40) {
-    if (['frustrated', 'angry', 'mad', 'ridiculous', 'unacceptable', 'terrible'].some(w => lowerText.includes(w))) {
-      const isAngry = lowerText.includes('angry') || lowerText.includes('mad') || lowerText.includes('ridiculous') || lowerText.includes('unacceptable');
-      return {
-        name: isAngry ? 'ANGRY' : 'FRUSTRATED',
-        icon: isAngry ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
-        color: isAngry ? 'bg-error' : 'bg-error/80',
-        textClass: isAngry ? 'text-error' : 'text-[#ffb4ab]',
-        borderClass: isAngry ? 'border-error/30' : 'border-[#ffb4ab]/30',
-        glowClass: isAngry ? 'rgba(255, 180, 171, 0.4)' : 'rgba(255, 180, 171, 0.25)',
-        isNegative: true,
-        intensity: 80
-      };
-    }
-
-    if (['stressed', 'overwhelmed', 'workload', 'tired'].some(w => lowerText.includes(w))) {
-      const isOverwhelmed = lowerText.includes('overwhelmed') || lowerText.includes('workload');
-      return {
-        name: isOverwhelmed ? 'OVERWHELMED' : 'STRESSED',
-        icon: isOverwhelmed ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
-        color: isOverwhelmed ? 'bg-secondary/80' : 'bg-secondary',
-        textClass: isOverwhelmed ? 'text-[#e8c3ff]' : 'text-[#ddb7ff]',
-        borderClass: isOverwhelmed ? 'border-[#e8c3ff]/30' : 'border-[#ddb7ff]/20',
-        glowClass: isOverwhelmed ? 'rgba(221, 183, 255, 0.4)' : 'rgba(221, 183, 255, 0.3)',
-        isNegative: true,
-        intensity: 75
-      };
-    }
-
-    if (['sad', 'upset', 'disappointed'].some(w => lowerText.includes(w))) {
-      return {
-        name: 'OVERWHELMED',
-        icon: 'sentiment_very_dissatisfied',
-        color: 'bg-secondary/80',
-        textClass: 'text-[#e8c3ff]',
-        borderClass: 'border-[#e8c3ff]/30',
-        glowClass: 'rgba(221, 183, 255, 0.4)',
-        isNegative: true,
-        intensity: 75
-      };
-    }
-
-    if (['happy', 'resolved', 'thanks', 'good'].some(w => lowerText.includes(w))) {
-      return {
-        name: 'SATISFIED',
-        icon: 'sentiment_satisfied',
-        color: 'bg-primary',
-        textClass: 'text-primary',
-        borderClass: 'border-primary/20',
-        glowClass: 'rgba(192, 193, 255, 0.3)',
-        isNegative: false,
-        intensity: 75
-      };
-    }
-  }
-
+  // E. Standard GoEmotions Mappings (from original models)
   // 3. ANGRY (standard GoEmotions fallback if none of above matches)
   if (name === 'anger') {
     return {
@@ -380,6 +479,7 @@ const getAIResponse = (messages: Message[]): string => {
   const latestMsg = messages[messages.length - 1];
   const userText = latestMsg.text || '';
   const normalizedText = userText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"").trim();
+  const lowerText = userText.toLowerCase();
   
   // Specific fallback requirement
   if (normalizedText === "i want to be happy") {
@@ -390,6 +490,45 @@ const getAIResponse = (messages: Message[]): string => {
   if (normalizedText.includes("workload") || normalizedText.includes("stressed") || normalizedText.includes("overwhelmed") || normalizedText.includes("stress")) {
     return "I'm sorry you're feeling overwhelmed. I'll do my best to help make this easier.";
   }
+
+  // Smart Context-Aware Empathetic Responses
+  // 1. Pending payment/order processing check
+  if (lowerText.includes("pending") && (lowerText.includes("payment") || lowerText.includes("order"))) {
+    return "I understand the concern. Your payment may still be processing. Let me help check the order status for you.";
+  }
+
+  // 2. Manager/legal/escalation directive check
+  if (lowerText.includes('manager') || lowerText.includes('escalate') || lowerText.includes('legal') || lowerText.includes('supervisor')) {
+    return "I understand this is frustrating. I am looping in my supervisor immediately to assist you with this matter.";
+  }
+
+  // 3. Sarcasm detection check
+  const hasEllipsis = lowerText.includes('...');
+  const positiveWords = ['amazing', 'great', 'perfect', 'love', 'excellent', 'wow', 'wonderful', 'happy', 'solved', 'thanks'];
+  const negativeOps = [
+    'pending', 'delayed', 'delay', 'not working', 'issue', 'failed', 'stuck', 'error', 
+    'refund', 'nobody helped', 'unresolved', 'frustrated', 'exhausted', 'overwhelmed', 
+    'broken', 'unacceptable', 'bad', 'cancellation', 'poor', 'slow', 'horrible', 'waste'
+  ];
+  const hasPositive = positiveWords.some(w => lowerText.includes(w));
+  const hasNegativeOp = negativeOps.some(w => lowerText.includes(w));
+  const hasRepeatedIssues = (lowerText.match(/issue/g) || []).length >= 2 || lowerText.includes('another issue') || lowerText.includes('issue again') || lowerText.includes('repeated');
+  const isSarcastic = (hasPositive && hasNegativeOp) || (hasPositive && hasEllipsis) || (hasEllipsis && hasNegativeOp) || hasRepeatedIssues;
+
+  if (isSarcastic && hasNegativeOp) {
+    return "I see there's some frustration here despite the wording. Let me get right on this and sort out the issue.";
+  }
+
+  // 4. Billing/refunds/cancellations check
+  if (lowerText.includes('refund') || lowerText.includes('cancel') || lowerText.includes('charge') || lowerText.includes('billing')) {
+    return "I understand you're requesting a refund or cancellation. Let me check your account details immediately to see how we can process this.";
+  }
+
+  // 5. General operational error/issues check
+  if (['pending', 'delayed', 'delay', 'not working', 'issue', 'failed', 'stuck', 'error', 'nobody helped', 'unresolved', 'slow', 'broken'].some(w => lowerText.includes(w))) {
+    return "I apologize for the issue you're experiencing with our system. I am investigating the operational error now to resolve this for you.";
+  }
+
 
   // 1. Repetition detection
   const customerMessages = messages.filter(m => m.sender === 'customer');
@@ -491,6 +630,19 @@ export default function LiveStream({
   const [inputValue, setInputValue] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [currentTimeText, setCurrentTimeText] = useState<string>('12:05 PM');
+
+  // Live Telemetry Logs Terminal State
+  const [telemetryLogs, setTelemetryLogs] = useState<string[]>([
+    `[${new Date().toLocaleTimeString()}] Live Telemetry Engine active.`,
+    `[${new Date().toLocaleTimeString()}] Tracked model parameters: GoEmotions V2 DistilBERT.`,
+    `[${new Date().toLocaleTimeString()}] Dynamic Drift Memory compounded check active.`
+  ]);
+
+  const addTelemetryLog = (msg: string) => {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setTelemetryLogs(prev => [`[${timestamp}] ${msg}`, ...prev].slice(0, 40));
+  };
+
   
   // Escalation flow state
   const [actionStatusText, setActionStatusText] = useState<string>('Required');
@@ -777,7 +929,117 @@ export default function LiveStream({
       }
 
       // Map backend predicted emotion to UI styled Emotion
-      const mappedEmotion = mapBackendEmotion(backendEmotion, confidence, userText);
+      const mappedEmotion = { ...mapBackendEmotion(backendEmotion, confidence, userText) };
+      
+      // Set low-confidence fallback flag
+      if (confidence < 0.40) {
+        mappedEmotion.isFallbackActive = true;
+        addTelemetryLog(`[FALLBACK ACTIVE] Low confidence backend prediction (${Math.round(confidence * 100)}%). Heuristic mapping forced.`);
+      }
+
+      // Sarcasm logging
+      const hasEllipsis = lowerText.includes('...');
+      const positiveWords = ['amazing', 'great', 'perfect', 'love', 'excellent', 'wow', 'wonderful', 'happy', 'solved', 'thanks'];
+      const negativeOps = [
+        'pending', 'delayed', 'delay', 'not working', 'issue', 'failed', 'stuck', 'error', 
+        'refund', 'nobody helped', 'unresolved', 'frustrated', 'exhausted', 'overwhelmed', 
+        'broken', 'unacceptable', 'bad', 'cancellation', 'poor', 'slow', 'horrible', 'waste'
+      ];
+      const hasPositive = positiveWords.some(w => lowerText.includes(w));
+      const hasNegativeOp = negativeOps.some(w => lowerText.includes(w));
+      const hasRepeatedIssues = (lowerText.match(/issue/g) || []).length >= 2 || lowerText.includes('another issue') || lowerText.includes('issue again') || lowerText.includes('repeated');
+      const isSarcastic = (hasPositive && hasNegativeOp) || (hasPositive && hasEllipsis) || (hasEllipsis && hasNegativeOp) || hasRepeatedIssues;
+      if (isSarcastic && hasNegativeOp) {
+        addTelemetryLog(`[SARCASM OVERRIDE] Conflicting emotion signals detected! Override mapped to FRUSTRATED.`);
+      }
+
+      // Operational keyword matches log
+      if (lowerText.includes('pending') && (lowerText.includes('payment') || lowerText.includes('order'))) {
+        addTelemetryLog(`[OVERRIDE] Pending payment/order override triggered. Mapped: CONFUSED.`);
+      }
+
+      // Define emotional severity helper
+      const getSeverity = (emotionName: string) => {
+        const n = emotionName.toUpperCase();
+        if (n === 'ANGRY') return 6;
+        if (n === 'FRUSTRATED') return 5;
+        if (n === 'OVERWHELMED') return 4;
+        if (n === 'STRESSED') return 3;
+        if (n === 'CONFUSED') return 2;
+        if (n === 'NEUTRAL') return 1;
+        return 0; // positive or satisfied
+      };
+
+      // Extract conversation history for memory and decay checks
+      const customerMsgs = activeTicket.messages.filter(m => m.sender === 'customer');
+
+      // A. Recovery Decay check
+      if (!mappedEmotion.isNegative && activeTicket.driftScore > 0.3) {
+        const prevDrift = activeTicket.driftScore;
+        drift_score = prevDrift * 0.5;
+        addTelemetryLog(`[RECOVERY DECAY] Positive client signal (${mappedEmotion.name}). Decaying drift score by 50% from ${prevDrift.toFixed(2)} to ${drift_score.toFixed(2)}.`);
+      }
+
+      // B. Drift Memory compounding check
+      if (mappedEmotion.isNegative && customerMsgs.length > 0) {
+        const currSeverity = getSeverity(mappedEmotion.name);
+        const prevSeverity = getSeverity(customerMsgs[customerMsgs.length - 1].emotion?.name || 'NEUTRAL');
+        const prevPrevSeverity = customerMsgs.length > 1 ? getSeverity(customerMsgs[customerMsgs.length - 2].emotion?.name || 'NEUTRAL') : 0;
+        let multiplier = 1.0;
+
+        if (currSeverity > 1) {
+          if (currSeverity > prevSeverity && prevSeverity > prevPrevSeverity) {
+            multiplier = 1.40;
+            addTelemetryLog(`[DRIFT MEMORY] Double Progressive escalation detected (${customerMsgs[customerMsgs.length - 2]?.emotion?.name || 'NONE'} -> ${customerMsgs[customerMsgs.length - 1]?.emotion?.name || 'NEUTRAL'} -> ${mappedEmotion.name}). Compounding with 1.40x multiplier.`);
+          } else if (currSeverity > prevSeverity) {
+            multiplier = 1.25;
+            addTelemetryLog(`[DRIFT MEMORY] Single Progressive escalation detected (${customerMsgs[customerMsgs.length - 1]?.emotion?.name || 'NEUTRAL'} -> ${mappedEmotion.name}). Compounding with 1.25x multiplier.`);
+          } else if (currSeverity === prevSeverity && currSeverity >= 4) {
+            multiplier = 1.15;
+            addTelemetryLog(`[DRIFT MEMORY] Persistent negative state detected (${mappedEmotion.name}). Compounding with 1.15x multiplier.`);
+          }
+        }
+
+        if (multiplier > 1.0) {
+          const oldDrift = drift_score;
+          drift_score = Math.min(0.99, drift_score * multiplier);
+          addTelemetryLog(`[DRIFT ENGINE] Final drift compounded from ${oldDrift.toFixed(2)} to ${drift_score.toFixed(2)}.`);
+        }
+      }
+
+      // C. Escalation Intelligence Triggers
+      const allCustomerText = (customerMsgs.map(m => m.text).join(' ') + ' ' + userText).toLowerCase();
+      let opMatches = 0;
+      negativeOps.forEach(op => {
+        const matches = (allCustomerText.match(new RegExp(op, 'g')) || []).length;
+        opMatches += matches;
+      });
+      const hasRepeatedHistoryOps = opMatches >= 3;
+
+      const explicitKeywords = [
+        "speak to manager", "cancel subscription", "nobody helped", 
+        "this is ridiculous", "refund now", "unacceptable", 
+        "escalate", "legal", "supervisor", "unresolved"
+      ];
+      const hasExplicitEscalationPhrase = explicitKeywords.some(phrase => lowerText.includes(phrase));
+      const isHighAngryFrustrated = (mappedEmotion.name === 'ANGRY' || mappedEmotion.name === 'FRUSTRATED') && mappedEmotion.intensity > 70;
+
+      let triggerReason = '';
+      if (isHighAngryFrustrated) {
+        triggerReason = `Negative emotion peaked (${mappedEmotion.name} @ ${mappedEmotion.intensity}%)`;
+      } else if (hasRepeatedHistoryOps) {
+        triggerReason = `Repeated operational keywords in stream history (${opMatches} matches)`;
+      } else if (hasExplicitEscalationPhrase) {
+        const matchedPhrase = explicitKeywords.find(phrase => lowerText.includes(phrase));
+        triggerReason = `Explicit high-risk directive: "${matchedPhrase}"`;
+      }
+
+      if (triggerReason) {
+        escalation_required = true;
+        risk_level = 'HIGH';
+        drift_score = Math.max(drift_score, 0.95);
+        addTelemetryLog(`[ESCALATION ENFORCED] Reason: ${triggerReason}. Overriding drift score to 0.95.`);
+      }
 
       // Append Customer message with mapped emotion
       const userMsg: Message = {
@@ -794,11 +1056,13 @@ export default function LiveStream({
       // Update active ticket state
       setTickets(prev => prev.map(t => {
         if (t.id === selectedTicketId) {
+          const finalStatus = escalation_required ? 'active' : t.status;
           return {
             ...t,
             messages: updatedMessages,
             driftScore: drift_score,
-            dominantEmotion: mappedEmotion.name
+            dominantEmotion: mappedEmotion.name,
+            status: finalStatus
           };
         }
         return t;
@@ -831,8 +1095,8 @@ export default function LiveStream({
           return t;
         }));
 
-        // Trigger escalation alert callback if ANGRY or FRUSTRATED predicted
-        if (mappedEmotion.name === 'ANGRY' || mappedEmotion.name === 'FRUSTRATED') {
+        // Trigger escalation alert callback if required
+        if (escalation_required || mappedEmotion.name === 'ANGRY' || mappedEmotion.name === 'FRUSTRATED') {
           onAddEscalation(activeTicket.id, activeTicket.customerName, parseFloat(drift_score.toFixed(2)));
         }
       }, 1000);
@@ -1071,6 +1335,11 @@ export default function LiveStream({
                           <span className={`text-[10px] font-bold ${message.emotion.textClass}`}>
                             {message.emotion.intensity}%
                           </span>
+                          {message.emotion.isFallbackActive && (
+                            <span className="px-1.5 py-0.5 rounded bg-tertiary/15 text-tertiary text-[8px] font-sans font-bold border border-tertiary/30 ml-1.5 animate-pulse">
+                              LOW CONFIDENCE (FALLBACK ACTIVE)
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -1287,6 +1556,24 @@ export default function LiveStream({
                         ? 'Monitor closely. Offer empathetic automated renewal options.'
                         : 'Permit fully autonomous AI responses.'}
                   </p>
+                </div>
+
+                {/* Live Telemetry Terminal Console */}
+                <div className="mt-4 border border-white/5 bg-black/45 rounded-xl p-3.5 flex flex-col h-[140px] overflow-hidden relative select-none">
+                  <span className="font-mono text-[9px] text-primary block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="w-3 h-3 text-primary animate-pulse" />
+                    Live System Telemetry Logs
+                  </span>
+                  <div className="flex-1 overflow-y-auto font-mono text-[10px] text-on-surface-variant/90 space-y-1.5 pr-1 scrollbar-thin">
+                    {telemetryLogs.map((log, idx) => (
+                      <div key={idx} className="leading-relaxed border-b border-white/[0.02] pb-1 font-mono break-words text-left">
+                        <span className="text-[#a5b4fc]">{log.substring(0, log.indexOf(']') + 1)}</span>{' '}
+                        <span className={log.includes('[ESCALATION') ? 'text-error font-semibold' : log.includes('[DRIFT') ? 'text-[#e8c3ff]' : log.includes('[RECOVERY') ? 'text-primary' : 'text-on-surface-variant/90'}>
+                          {log.substring(log.indexOf(']') + 1)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

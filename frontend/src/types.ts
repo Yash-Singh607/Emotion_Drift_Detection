@@ -7,6 +7,7 @@ export interface Emotion {
   glowClass: string; // CSS custom raw color for glowing drop shadows
   isNegative: boolean;
   intensity: number; // 0 - 100
+  isFallbackActive?: boolean; // indicates fallback logic was active due to low confidence
 }
 
 export interface Message {
