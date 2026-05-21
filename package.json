@@ -1,0 +1,57 @@
+{
+  "name": "emotion-drift-detection",
+  "version": "1.0.0",
+  "description": "Real-Time Emotion Drift Detection Desktop Application",
+  "main": "main.js",
+  "scripts": {
+    "dev:web": "npm run dev --prefix frontend",
+    "build:web": "npm run build --prefix frontend",
+    "dev:desktop": "electron . --dev",
+    "build:desktop": "npm run build:web && electron-builder --win",
+    "build:frontend": "npm run build --prefix frontend",
+    "start": "electron . --dev",
+    "package": "npm run build:frontend && electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.emotion.driftdetect",
+    "productName": "Emotion Drift Active Monitor",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "EmotionDriftSetup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Emotion Drift Monitor"
+    },
+    "files": [
+      "main.js",
+      "splash.html",
+      "frontend/dist/**/*"
+    ],
+    "extraResources": [
+      "app.py",
+      "config.json",
+      "data_loader.py",
+      "download_data.py",
+      "drift_detector.py",
+      "emotion_checkpoints/**",
+      "emotion_model.py",
+      "emotion_model_trained_final/**",
+      "emotion_model_trained_final.py",
+      "escalation.py",
+      "inference.py",
+      "main.py",
+      "requirements.txt",
+      "env/**"
+    ]
+  }
+}

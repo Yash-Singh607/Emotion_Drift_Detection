@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Initializing Active Monitor</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #080c14;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      -webkit-app-region: drag; /* Allows moving the borderless splash window */
+    }
+
+    .splash-container {
+      width: 480px;
+      height: 280px;
+      background: rgba(27, 32, 41, 0.4);
+      border: 1px border rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    /* Outer glowing orbit rings */
+    .spinner-ring {
+      position: relative;
+      width: 70px;
+      height: 70px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .ring-outer {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border: 2px solid transparent;
+      border-top-color: #c0c1ff;
+      border-bottom-color: rgba(192, 193, 255, 0.1);
+      border-radius: 50%;
+      animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+
+    .ring-inner {
+      position: absolute;
+      width: 70%;
+      height: 70%;
+      border: 2px solid transparent;
+      border-left-color: #d97721;
+      border-right-color: rgba(217, 119, 33, 0.1);
+      border-radius: 50%;
+      animation: spin-reverse 0.9s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+
+    .core-dot {
+      width: 12px;
+      height: 12px;
+      background-color: #ffb4ab;
+      border-radius: 50%;
+      box-shadow: 0 0 12px #ffb4ab;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    h1 {
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin: 0 0 8px 0;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: 0.6;
+      margin: 0;
+    }
+
+    .telemetry-bar {
+      position: absolute;
+      bottom: 24px;
+      width: calc(100% - 80px);
+      height: 3px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .telemetry-progress {
+      width: 30%;
+      height: 100%;
+      background: linear-gradient(90deg, #494bd6, #6f00be);
+      border-radius: 2px;
+      animation: loading-bar 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      box-shadow: 0 0 8px rgba(111, 0, 190, 0.5);
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes spin-reverse {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.9); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+
+    @keyframes loading-bar {
+      0% { left: -35%; width: 35%; }
+      50% { width: 45%; }
+      100% { left: 100%; width: 35%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash-container">
+    <div class="spinner-ring">
+      <div class="ring-outer"></div>
+      <div class="ring-inner"></div>
+      <div class="core-dot"></div>
+    </div>
+    
+    <h1>Emotion Drift active monitor</h1>
+    <p class="subtitle">Initializing DistilBERT & FastAPI Server...</p>
+    
+    <div class="telemetry-bar">
+      <div class="telemetry-progress"></div>
+    </div>
+  </div>
+</body>
+</html>

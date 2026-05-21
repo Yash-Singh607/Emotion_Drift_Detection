@@ -1,0 +1,44 @@
+# Ignore virtual environments and development modules
+env/
+venv/
+.venv/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Exclude local build artifacts and desktop binaries
+dist/
+dist_electron/
+*.exe
+*.7z
+*.zip
+
+# Ignore git specific files
+.git/
+.github/
+.gitattributes
+.gitignore
+
+# Exclude Python temporary caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Ignore local configuration files and environment overrides
+.env
+.env.local
+.env.production
+.env.development
+frontend/.env
+frontend/.env.production
+
+# Ignore development tools and Dockerfiles inside context
+Dockerfile
+.dockerignore
+.docker/
+.vscode/
+.idea/
+*.log
+*.db
