@@ -21,11 +21,145 @@ import { EMOTIONS, MOCK_TICKETS, MOCK_TEAM_MEMBERS } from '../data/mockData';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 // Helper to map 28 GoEmotions labels to UI styled Emotion
-const mapBackendEmotion = (backendEmotion: string, confidence: number): Emotion => {
+const mapBackendEmotion = (backendEmotion: string, confidence: number, text: string = ''): Emotion => {
   const name = backendEmotion.toLowerCase();
   const intensity = Math.round(confidence * 100);
+  const lowerText = text.toLowerCase();
 
-  // 1. ANGRY
+  // 1. Check for high-priority keyword rules first
+  if (lowerText.includes('extremely frustrated')) {
+    return {
+      name: 'FRUSTRATED',
+      icon: 'sentiment_dissatisfied',
+      color: 'bg-error/80',
+      textClass: 'text-[#ffb4ab]',
+      borderClass: 'border-[#ffb4ab]/30',
+      glowClass: 'rgba(255, 180, 171, 0.25)',
+      isNegative: true,
+      intensity: 98
+    };
+  }
+
+  if (lowerText.includes('frustrated') || lowerText.includes('frustrating') || lowerText.includes('frustration')) {
+    return {
+      name: 'FRUSTRATED',
+      icon: 'sentiment_dissatisfied',
+      color: 'bg-error/80',
+      textClass: 'text-[#ffb4ab]',
+      borderClass: 'border-[#ffb4ab]/30',
+      glowClass: 'rgba(255, 180, 171, 0.25)',
+      isNegative: true,
+      intensity: Math.max(intensity, 85)
+    };
+  }
+
+  // overwhelmed + negative words -> escalation risk
+  const negativeWords = [
+    'bad', 'issue', 'terrible', 'delay', 'broken', 'failed', 'ridiculous', 'error', 
+    'unacceptable', 'refund', 'supervisor', 'not happy', 'not satisfied', 'not good', 
+    'frustrated', 'frustrating', 'frustration', 'angry', 'mad', 'upset', 'disappointed', 
+    'cancellation', 'poor', 'slow', 'horrible', 'waste'
+  ];
+  if (lowerText.includes('overwhelmed') && negativeWords.some(w => lowerText.includes(w))) {
+    return {
+      name: 'OVERWHELMED',
+      icon: 'sentiment_very_dissatisfied',
+      color: 'bg-secondary/80',
+      textClass: 'text-[#e8c3ff]',
+      borderClass: 'border-[#e8c3ff]/30',
+      glowClass: 'rgba(221, 183, 255, 0.4)',
+      isNegative: true,
+      intensity: Math.max(intensity, 85)
+    };
+  }
+
+  // angry/mad/ridiculous/unacceptable/terrible/delay/refund/supervisor
+  const highRiskKeywords = ['angry', 'mad', 'ridiculous', 'unacceptable', 'terrible', 'delay', 'refund', 'supervisor'];
+  if (highRiskKeywords.some(w => lowerText.includes(w))) {
+    return {
+      name: 'ANGRY',
+      icon: 'sentiment_very_dissatisfied',
+      color: 'bg-error',
+      textClass: 'text-error',
+      borderClass: 'border-error/30',
+      glowClass: 'rgba(255, 180, 171, 0.4)',
+      isNegative: true,
+      intensity: Math.max(intensity, 90)
+    };
+  }
+
+  // not happy/not satisfied/not good -> sadness/frustration, not neutral
+  if (lowerText.includes('not happy') || lowerText.includes('not satisfied') || lowerText.includes('not good')) {
+    return {
+      name: 'FRUSTRATED',
+      icon: 'sentiment_dissatisfied',
+      color: 'bg-error/80',
+      textClass: 'text-[#ffb4ab]',
+      borderClass: 'border-[#ffb4ab]/30',
+      glowClass: 'rgba(255, 180, 171, 0.25)',
+      isNegative: true,
+      intensity: Math.max(intensity, 70)
+    };
+  }
+
+  // 2. Fallback sentiment rules if backend confidence is below 40%
+  if (confidence < 0.40) {
+    if (['frustrated', 'angry', 'mad', 'ridiculous', 'unacceptable', 'terrible'].some(w => lowerText.includes(w))) {
+      const isAngry = lowerText.includes('angry') || lowerText.includes('mad') || lowerText.includes('ridiculous') || lowerText.includes('unacceptable');
+      return {
+        name: isAngry ? 'ANGRY' : 'FRUSTRATED',
+        icon: isAngry ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
+        color: isAngry ? 'bg-error' : 'bg-error/80',
+        textClass: isAngry ? 'text-error' : 'text-[#ffb4ab]',
+        borderClass: isAngry ? 'border-error/30' : 'border-[#ffb4ab]/30',
+        glowClass: isAngry ? 'rgba(255, 180, 171, 0.4)' : 'rgba(255, 180, 171, 0.25)',
+        isNegative: true,
+        intensity: 80
+      };
+    }
+
+    if (['stressed', 'overwhelmed', 'workload', 'tired'].some(w => lowerText.includes(w))) {
+      const isOverwhelmed = lowerText.includes('overwhelmed') || lowerText.includes('workload');
+      return {
+        name: isOverwhelmed ? 'OVERWHELMED' : 'STRESSED',
+        icon: isOverwhelmed ? 'sentiment_very_dissatisfied' : 'sentiment_dissatisfied',
+        color: isOverwhelmed ? 'bg-secondary/80' : 'bg-secondary',
+        textClass: isOverwhelmed ? 'text-[#e8c3ff]' : 'text-[#ddb7ff]',
+        borderClass: isOverwhelmed ? 'border-[#e8c3ff]/30' : 'border-[#ddb7ff]/20',
+        glowClass: isOverwhelmed ? 'rgba(221, 183, 255, 0.4)' : 'rgba(221, 183, 255, 0.3)',
+        isNegative: true,
+        intensity: 75
+      };
+    }
+
+    if (['sad', 'upset', 'disappointed'].some(w => lowerText.includes(w))) {
+      return {
+        name: 'OVERWHELMED',
+        icon: 'sentiment_very_dissatisfied',
+        color: 'bg-secondary/80',
+        textClass: 'text-[#e8c3ff]',
+        borderClass: 'border-[#e8c3ff]/30',
+        glowClass: 'rgba(221, 183, 255, 0.4)',
+        isNegative: true,
+        intensity: 75
+      };
+    }
+
+    if (['happy', 'resolved', 'thanks', 'good'].some(w => lowerText.includes(w))) {
+      return {
+        name: 'SATISFIED',
+        icon: 'sentiment_satisfied',
+        color: 'bg-primary',
+        textClass: 'text-primary',
+        borderClass: 'border-primary/20',
+        glowClass: 'rgba(192, 193, 255, 0.3)',
+        isNegative: false,
+        intensity: 75
+      };
+    }
+  }
+
+  // 3. ANGRY (standard GoEmotions fallback if none of above matches)
   if (name === 'anger') {
     return {
       name: 'ANGRY',
@@ -254,7 +388,7 @@ const getAIResponse = (messages: Message[]): string => {
 
   // Workload/stress-related response override
   if (normalizedText.includes("workload") || normalizedText.includes("stressed") || normalizedText.includes("overwhelmed") || normalizedText.includes("stress")) {
-    return "I'm sorry you're feeling overwhelmed. Managing heavy workloads can be stressful. Let me know how I can help.";
+    return "I'm sorry you're feeling overwhelmed. I'll do my best to help make this easier.";
   }
 
   // 1. Repetition detection
@@ -311,7 +445,7 @@ const getAIResponse = (messages: Message[]): string => {
   
   // Case 1: Escalating Frustration / Anger
   if (isEscalatingFrustration || currentEmotion === 'ANGRY' || currentEmotion === 'FRUSTRATED') {
-    return "I understand your frustration. I'm escalating this issue right now so we can resolve it quickly.";
+    return "I understand your frustration. I'm escalating this so we can resolve it quickly.";
   }
 
   // Case 2: Persistent Confusion loop
@@ -326,7 +460,7 @@ const getAIResponse = (messages: Message[]): string => {
 
   // Case 4: Stressed/Overwhelmed
   if (currentEmotion === 'STRESSED' || currentEmotion === 'OVERWHELMED') {
-    return "I understand your concern completely. Please rest assured we're here to support you and we'll get this sorted out together.";
+    return "I'm sorry you're feeling overwhelmed. I'll do my best to help make this easier.";
   }
 
   // Case 5: Confused
@@ -619,10 +753,31 @@ export default function LiveStream({
 
       const data = await response.json();
       // Backend response keys: emotion, confidence, drift_score, risk_level, escalation_required
-      const { emotion: backendEmotion, confidence, drift_score, risk_level, escalation_required } = data;
+      let { emotion: backendEmotion, confidence, drift_score, risk_level, escalation_required } = data;
+      const lowerText = userText.toLowerCase();
+
+      // Custom keyword overrides to improve risk scoring
+      // 1. Extremely frustrated
+      if (lowerText.includes('extremely frustrated')) {
+        drift_score = 0.95;
+        risk_level = 'HIGH';
+        escalation_required = true;
+      }
+      // 2. Anger/frustration keywords
+      else if (['frustrated', 'frustrating', 'frustration', 'angry', 'mad', 'ridiculous', 'unacceptable', 'terrible', 'delay', 'refund', 'supervisor'].some(w => lowerText.includes(w))) {
+        drift_score = Math.max(drift_score, 0.85);
+        risk_level = 'HIGH';
+        escalation_required = true;
+      }
+      // 3. Low confidence fallback with negative keywords
+      else if (confidence < 0.40 && ['stressed', 'overwhelmed', 'workload', 'tired', 'sad', 'upset', 'disappointed', 'not happy', 'not satisfied', 'not good'].some(w => lowerText.includes(w))) {
+        drift_score = Math.max(drift_score, 0.65);
+        risk_level = 'MEDIUM';
+        escalation_required = true;
+      }
 
       // Map backend predicted emotion to UI styled Emotion
-      const mappedEmotion = mapBackendEmotion(backendEmotion, confidence);
+      const mappedEmotion = mapBackendEmotion(backendEmotion, confidence, userText);
 
       // Append Customer message with mapped emotion
       const userMsg: Message = {
