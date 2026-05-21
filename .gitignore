@@ -4,3 +4,6 @@ dist/
 dist/
 node_modules/
 *.exe
+dist/
+node_modules/
+*.exe
