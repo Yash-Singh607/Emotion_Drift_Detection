@@ -7,8 +7,11 @@ export interface Emotion {
   glowClass: string; // CSS custom raw color for glowing drop shadows
   isNegative: boolean;
   intensity: number; // 0 - 100
-  isFallbackActive?: boolean; // indicates fallback logic was active due to low confidence
-  isOverrideActive?: boolean; // indicates direct phrase override was triggered
+  isFallbackActive?: boolean; // indicates fallback logic was active due to low confidence (LOW CONFIDENCE)
+  isOverrideActive?: boolean; // indicates direct phrase override was triggered (DIRECT EMOTION OVERRIDE)
+  isOperationalActive?: boolean; // indicates operational frustration was detected (OPERATIONAL FRUSTRATION DETECTED)
+  isSarcasmActive?: boolean;     // indicates sarcasm was detected (SARCASM DETECTED)
+  isEscalationActive?: boolean;  // indicates escalation keyword was detected (ESCALATION KEYWORD DETECTED)
 }
 
 export interface Message {
