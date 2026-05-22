@@ -8,6 +8,7 @@ export interface Emotion {
   isNegative: boolean;
   intensity: number; // 0 - 100
   isFallbackActive?: boolean; // indicates fallback logic was active due to low confidence
+  isOverrideActive?: boolean; // indicates direct phrase override was triggered
 }
 
 export interface Message {

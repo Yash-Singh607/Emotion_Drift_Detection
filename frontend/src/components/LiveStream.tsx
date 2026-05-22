@@ -26,6 +26,94 @@ const mapBackendEmotion = (backendEmotion: string, confidence: number, text: str
   const intensity = Math.round(confidence * 100);
   const lowerText = text.toLowerCase();
 
+  // 1. Direct Emotion Override Layer
+  // Enforces explicit emotion tags if confidence is below 40% OR backend predicted neutral
+  if (confidence < 0.40 || name === 'neutral') {
+    const explicitSadness = ['sad', 'depressed', 'lonely', 'upset', 'heartbroken', 'crying', 'miserable'];
+    const explicitAnger = ['angry', 'furious', 'pissed', 'irritated', 'annoyed', 'frustrated'];
+    const explicitStress = ['overwhelmed', 'exhausted', 'burnt out', 'stressed', 'mentally tired'];
+    const explicitFear = ['anxious', 'nervous', 'scared', 'worried', 'panic'];
+    const explicitPositive = ['happy', 'excited', 'relieved', 'satisfied', 'thankful'];
+
+    // A. Anger Override check (ANGRY or FRUSTRATED based on word)
+    if (explicitAnger.some(w => lowerText.includes(w))) {
+      const isFrustrated = ['irritated', 'annoyed', 'frustrated'].some(w => lowerText.includes(w));
+      return {
+        name: isFrustrated ? 'FRUSTRATED' : 'ANGRY',
+        icon: isFrustrated ? 'sentiment_dissatisfied' : 'sentiment_very_dissatisfied',
+        color: isFrustrated ? 'bg-error/80' : 'bg-error',
+        textClass: isFrustrated ? 'text-[#ffb4ab]' : 'text-error',
+        borderClass: isFrustrated ? 'border-[#ffb4ab]/30' : 'border-error/30',
+        glowClass: isFrustrated ? 'rgba(255, 180, 171, 0.25)' : 'rgba(255, 180, 171, 0.4)',
+        isNegative: true,
+        intensity: 95,
+        isOverrideActive: true
+      };
+    }
+
+    // B. Sadness Override check (OVERWHELMED)
+    if (explicitSadness.some(w => lowerText.includes(w))) {
+      return {
+        name: 'OVERWHELMED',
+        icon: 'sentiment_very_dissatisfied',
+        color: 'bg-secondary/80',
+        textClass: 'text-[#e8c3ff]',
+        borderClass: 'border-[#e8c3ff]/30',
+        glowClass: 'rgba(221, 183, 255, 0.4)',
+        isNegative: true,
+        intensity: 85,
+        isOverrideActive: true
+      };
+    }
+
+    // C. Stress/Overwhelmed Override check (STRESSED or OVERWHELMED)
+    if (explicitStress.some(w => lowerText.includes(w))) {
+      const isStressed = lowerText.includes('stressed');
+      return {
+        name: isStressed ? 'STRESSED' : 'OVERWHELMED',
+        icon: isStressed ? 'sentiment_dissatisfied' : 'sentiment_very_dissatisfied',
+        color: isStressed ? 'bg-secondary' : 'bg-secondary/80',
+        textClass: isStressed ? 'text-[#ddb7ff]' : 'text-[#e8c3ff]',
+        borderClass: isStressed ? 'border-[#ddb7ff]/20' : 'border-[#e8c3ff]/30',
+        glowClass: isStressed ? 'rgba(221, 183, 255, 0.3)' : 'rgba(221, 183, 255, 0.4)',
+        isNegative: true,
+        intensity: 88,
+        isOverrideActive: true
+      };
+    }
+
+    // D. Fear/Anxiety Override check (STRESSED)
+    if (explicitFear.some(w => lowerText.includes(w))) {
+      return {
+        name: 'STRESSED',
+        icon: 'sentiment_dissatisfied',
+        color: 'bg-secondary',
+        textClass: 'text-[#ddb7ff]',
+        borderClass: 'border-[#ddb7ff]/20',
+        glowClass: 'rgba(221, 183, 255, 0.3)',
+        isNegative: true,
+        intensity: 80,
+        isOverrideActive: true
+      };
+    }
+
+    // E. Positive Override check (SATISFIED or RELIEVED)
+    if (explicitPositive.some(w => lowerText.includes(w))) {
+      const isRelieved = lowerText.includes('relieved');
+      return {
+        name: isRelieved ? 'RELIEVED' : 'SATISFIED',
+        icon: 'sentiment_satisfied',
+        color: isRelieved ? 'bg-primary/80' : 'bg-primary',
+        textClass: isRelieved ? 'text-[#b4c5ff]' : 'text-primary',
+        borderClass: isRelieved ? 'border-[#b4c5ff]/30' : 'border-primary/20',
+        glowClass: isRelieved ? 'rgba(192, 193, 255, 0.25)' : 'rgba(192, 193, 255, 0.3)',
+        isNegative: false,
+        intensity: 85,
+        isOverrideActive: true
+      };
+    }
+  }
+
   // A. Sarcasm Detection
   const hasEllipsis = lowerText.includes('...');
   const positiveWords = ['amazing', 'great', 'perfect', 'love', 'excellent', 'wow', 'wonderful', 'happy', 'solved', 'thanks'];
@@ -480,6 +568,25 @@ const getAIResponse = (messages: Message[]): string => {
   const userText = latestMsg.text || '';
   const normalizedText = userText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g,"").trim();
   const lowerText = userText.toLowerCase();
+
+  // A. Direct explicit emotion response overrides
+  const normalizedLower = normalizedText.toLowerCase();
+  
+  if (normalizedLower === 'i am sad' || normalizedLower === 'i feel sad' || ['depressed', 'lonely', 'upset', 'heartbroken', 'crying', 'miserable'].some(w => normalizedLower.includes(w))) {
+    return "I'm sorry you're feeling sad. I'm here to support you. Would you like to talk more about what's bothering you?";
+  }
+  if (normalizedLower === 'i feel overwhelmed' || normalizedLower === 'i am overwhelmed' || ['exhausted', 'burnt out', 'mentally tired'].some(w => normalizedLower.includes(w))) {
+    return "It sounds like you're dealing with a lot right now. Let's work through it together step by step.";
+  }
+  if (normalizedLower === 'i am angry' || normalizedLower === 'i feel angry' || ['furious', 'pissed', 'irritated', 'annoyed', 'frustrated'].some(w => normalizedLower.includes(w))) {
+    return "I understand your frustration. I want to help resolve this as quickly as possible.";
+  }
+  if (normalizedLower === 'i feel anxious' || normalizedLower === 'i am anxious' || ['anxious', 'nervous', 'scared', 'worried', 'panic'].some(w => normalizedLower.includes(w))) {
+    return "I hear you, and it's completely okay to feel anxious. Let's slow down and solve this problem together.";
+  }
+  if (normalizedLower === 'i am very happy today' || normalizedLower === 'very happy' || ['happy', 'excited', 'relieved', 'satisfied', 'thankful'].some(w => normalizedLower.includes(w))) {
+    return "I'm so glad to hear you're feeling happy today! Let me know if there's anything else I can help you with.";
+  }
   
   // Specific fallback requirement
   if (normalizedText === "i want to be happy") {
@@ -908,31 +1015,76 @@ export default function LiveStream({
       let { emotion: backendEmotion, confidence, drift_score, risk_level, escalation_required } = data;
       const lowerText = userText.toLowerCase();
 
-      // Custom keyword overrides to improve risk scoring
-      // 1. Extremely frustrated
-      if (lowerText.includes('extremely frustrated')) {
-        drift_score = 0.95;
-        risk_level = 'HIGH';
-        escalation_required = true;
-      }
-      // 2. Anger/frustration keywords
-      else if (['frustrated', 'frustrating', 'frustration', 'angry', 'mad', 'ridiculous', 'unacceptable', 'terrible', 'delay', 'refund', 'supervisor'].some(w => lowerText.includes(w))) {
-        drift_score = Math.max(drift_score, 0.85);
-        risk_level = 'HIGH';
-        escalation_required = true;
-      }
-      // 3. Low confidence fallback with negative keywords
-      else if (confidence < 0.40 && ['stressed', 'overwhelmed', 'workload', 'tired', 'sad', 'upset', 'disappointed', 'not happy', 'not satisfied', 'not good'].some(w => lowerText.includes(w))) {
-        drift_score = Math.max(drift_score, 0.65);
-        risk_level = 'MEDIUM';
-        escalation_required = true;
-      }
-
       // Map backend predicted emotion to UI styled Emotion
       const mappedEmotion = { ...mapBackendEmotion(backendEmotion, confidence, userText) };
-      
-      // Set low-confidence fallback flag
-      if (confidence < 0.40) {
+
+      // 1. Direct Emotion Override Risk adjustments
+      if (mappedEmotion.isOverrideActive) {
+        const nameUpper = mappedEmotion.name.toUpperCase();
+        const explicitSadness = ['sad', 'depressed', 'lonely', 'upset', 'heartbroken', 'crying', 'miserable'];
+        const explicitStress = ['overwhelmed', 'exhausted', 'burnt out', 'mentally tired'];
+        const explicitFear = ['anxious', 'nervous', 'scared', 'worried', 'panic'];
+
+        if (nameUpper === 'ANGRY' || nameUpper === 'FRUSTRATED') {
+          drift_score = Math.max(drift_score, 0.95);
+          risk_level = 'HIGH';
+          escalation_required = true;
+        } else if (nameUpper === 'OVERWHELMED' && explicitSadness.some(w => lowerText.includes(w))) {
+          drift_score = Math.max(drift_score, 0.55);
+          risk_level = 'MEDIUM';
+          escalation_required = true;
+        } else if (nameUpper === 'OVERWHELMED' || explicitStress.some(w => lowerText.includes(w))) {
+          // overwhelmed / burnout
+          drift_score = Math.max(drift_score, 0.75);
+          risk_level = 'MEDIUM';
+          escalation_required = true;
+        } else if (nameUpper === 'STRESSED' && explicitFear.some(w => lowerText.includes(w))) {
+          // anxiety / panic / fear
+          drift_score = Math.max(drift_score, 0.65);
+          risk_level = 'MEDIUM';
+          escalation_required = true;
+        } else if (nameUpper === 'SATISFIED' || nameUpper === 'RELIEVED') {
+          drift_score = Math.max(0.10, drift_score * 0.5);
+          risk_level = 'LOW';
+        }
+
+        // Direct Emotion Override Telemetry Logging
+        let riskReason = 'LOW RISK';
+        if (nameUpper === 'ANGRY' || nameUpper === 'FRUSTRATED') {
+          riskReason = 'HIGH RISK (High Escalation)';
+        } else if (nameUpper === 'OVERWHELMED') {
+          riskReason = explicitSadness.some(w => lowerText.includes(w))
+            ? 'MEDIUM RISK (Medium Emotional / Sadness)'
+            : 'MEDIUM RISK (Sustained Fatigue)';
+        } else if (nameUpper === 'STRESSED') {
+          riskReason = 'MEDIUM RISK (Elevated Emotional Attention)';
+        }
+        addTelemetryLog(`[DIRECT OVERRIDE] Enforced explicit state: ${mappedEmotion.name} (${mappedEmotion.intensity}%). Risk Class: ${riskReason}.`);
+      }
+      // 2. Custom keyword overrides to improve risk scoring if no direct override was active
+      else {
+        // Extremely frustrated
+        if (lowerText.includes('extremely frustrated')) {
+          drift_score = 0.95;
+          risk_level = 'HIGH';
+          escalation_required = true;
+        }
+        // Anger/frustration keywords
+        else if (['frustrated', 'frustrating', 'frustration', 'angry', 'mad', 'ridiculous', 'unacceptable', 'terrible', 'delay', 'refund', 'supervisor'].some(w => lowerText.includes(w))) {
+          drift_score = Math.max(drift_score, 0.85);
+          risk_level = 'HIGH';
+          escalation_required = true;
+        }
+        // Low confidence fallback with negative keywords
+        else if (confidence < 0.40 && ['stressed', 'overwhelmed', 'workload', 'tired', 'sad', 'upset', 'disappointed', 'not happy', 'not satisfied', 'not good'].some(w => lowerText.includes(w))) {
+          drift_score = Math.max(drift_score, 0.65);
+          risk_level = 'MEDIUM';
+          escalation_required = true;
+        }
+      }
+
+      // Set low-confidence fallback flag if no direct override took place
+      if (confidence < 0.40 && !mappedEmotion.isOverrideActive) {
         mappedEmotion.isFallbackActive = true;
         addTelemetryLog(`[FALLBACK ACTIVE] Low confidence backend prediction (${Math.round(confidence * 100)}%). Heuristic mapping forced.`);
       }
@@ -1338,6 +1490,11 @@ export default function LiveStream({
                           {message.emotion.isFallbackActive && (
                             <span className="px-1.5 py-0.5 rounded bg-tertiary/15 text-tertiary text-[8px] font-sans font-bold border border-tertiary/30 ml-1.5 animate-pulse">
                               LOW CONFIDENCE (FALLBACK ACTIVE)
+                            </span>
+                          )}
+                          {message.emotion.isOverrideActive && (
+                            <span className="px-1.5 py-0.5 rounded bg-[#f3b575]/15 text-[#f3b575] text-[8px] font-sans font-bold border border-[#f3b575]/30 ml-1.5 animate-pulse uppercase">
+                              DIRECT EMOTION OVERRIDE
                             </span>
                           )}
                         </div>
