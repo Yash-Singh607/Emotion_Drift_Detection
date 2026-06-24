@@ -7,3 +7,7 @@ node_modules/
 dist/
 node_modules/
 *.exe
+__pycache__/
+*.py[cod]
+auth.db
+.pytest_cache/
