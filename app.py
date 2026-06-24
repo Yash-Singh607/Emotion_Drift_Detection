@@ -39,7 +39,10 @@ AUTH_EXPOSE_TOKENS = os.environ.get("AUTH_EXPOSE_TOKENS", "false").lower() == "t
 SESSION_SECRET = os.environ.get("SESSION_SECRET", AUTH_SECRET_KEY)
 FRONTEND_APP_URL = os.environ.get("FRONTEND_APP_URL", "http://localhost:3000")
 FRONTEND_OAUTH_REDIRECT_PATH = os.environ.get("FRONTEND_OAUTH_REDIRECT_PATH", "/")
-TRUSTED_HOSTS = [h.strip() for h in os.environ.get("TRUSTED_HOSTS", "").split(",") if h.strip()]
+_trusted_hosts_env = [h.strip() for h in os.environ.get("TRUSTED_HOSTS", "").split(",") if h.strip()]
+if not IS_PRODUCTION and "testserver" not in _trusted_hosts_env:
+    _trusted_hosts_env.append("testserver")
+TRUSTED_HOSTS = _trusted_hosts_env
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth = OAuth()
 

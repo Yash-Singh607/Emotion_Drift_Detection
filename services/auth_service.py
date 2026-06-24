@@ -10,15 +10,15 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, c
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 Base = declarative_base()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 VALID_ROLES = {"admin", "agent", "viewer"}
 TOKEN_PURPOSE_VERIFY_EMAIL = "verify_email"
 TOKEN_PURPOSE_RESET_PASSWORD = "reset_password"
 
 
 def _bcrypt_safe_secret(value: str) -> str:
-    # bcrypt accepts at most 72 bytes; keep hashes deterministic across paths.
-    return value.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+    # Keep helper centralized in case future password normalization is needed.
+    return value
 
 
 class User(Base):
