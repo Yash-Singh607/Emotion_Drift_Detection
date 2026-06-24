@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { 
   TrendingUp, 
-  Clock, 
   BarChart, 
   Award, 
   Activity, 
   Sparkles, 
   Gauge, 
-  LineChart,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
 
-export default function Analytics() {
+interface AnalyticsProps {
+  hasLiveData?: boolean;
+}
+
+export default function Analytics({ hasLiveData = false }: AnalyticsProps) {
   const [timeframe, setTimeframe] = useState<'24h' | '7d' | '30d'>('7d');
 
   // Interactive mock toggles
@@ -22,21 +25,61 @@ export default function Analytics() {
   };
 
   const selectedStats = statCardData[timeframe];
+  const exportPerformanceSnapshot = () => {
+    const lines = [
+      `Timeframe: ${timeframe}`,
+      `Total Streams: ${selectedStats.chats}`,
+      `Escalations: ${selectedStats.escalations}`,
+      `Common Trigger: ${selectedStats.common}`,
+      `Model Accuracy: ${selectedStats.accuracy}`,
+      `Generated At: ${new Date().toLocaleString()}`,
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `analytics-snapshot-${timeframe}-${Date.now()}.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  if (!hasLiveData) {
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="premium-card rounded-2xl px-5 py-4">
+          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Analytics</h2>
+          <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
+            Conversation trends and model performance over time
+          </p>
+        </div>
+        <div className="premium-card rounded-2xl p-10 text-center">
+          <Gauge className="w-10 h-10 text-on-surface-variant/50 mx-auto mb-3" />
+          <p className="text-on-surface font-medium">No production analytics yet.</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Analytics will populate once live conversations are analyzed by the backend.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
       
       {/* View Header */}
-      <div className="flex justify-between items-center pb-4 border-b border-white/5 select-none">
+      <div className="premium-card rounded-2xl px-5 py-4 flex justify-between items-center select-none">
         <div>
-          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Sentiment Telemetry Desk</h2>
+          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Analytics</h2>
           <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
-            Historical analytics & model classification accuracy
+            Conversation trends and model performance over time
           </p>
         </div>
 
         {/* Timeframe Controller */}
-        <div className="flex bg-white/3 p-1 rounded-xl border border-white/5 text-xs font-mono">
+        <div className="flex items-center gap-2">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 text-xs font-mono">
           {(['24h', '7d', '30d'] as const).map((t) => (
             <button
               key={t}
@@ -50,13 +93,21 @@ export default function Analytics() {
               {t.toUpperCase()}
             </button>
           ))}
+          </div>
+          <button
+            onClick={exportPerformanceSnapshot}
+            className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-semibold flex items-center gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export Snapshot
+          </button>
         </div>
       </div>
 
       {/* 4 Cards Stats Counters Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 select-none">
         {/* Metric 1 */}
-        <div className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between group hover:border-primary/25 transition-all">
+        <div className="premium-card lift-on-hover p-5 rounded-2xl flex flex-col justify-between group">
           <div className="flex justify-between items-start opacity-75 mb-2">
             <span className="font-mono text-[10px] text-[#94a3b8] uppercase tracking-wider">Total Streams</span>
             <Activity className="w-4 h-4 text-primary" />
@@ -70,7 +121,7 @@ export default function Analytics() {
         </div>
 
         {/* Metric 2 */}
-        <div className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between group hover:border-[#ffb4ab]/25 transition-all">
+        <div className="premium-card lift-on-hover p-5 rounded-2xl flex flex-col justify-between group">
           <div className="flex justify-between items-start opacity-75 mb-2">
             <span className="font-mono text-[10px] text-[#ffb4ab] uppercase tracking-wider">Escalation Triggers</span>
             <AlertTriangle className="w-4 h-4 text-error" />
@@ -84,7 +135,7 @@ export default function Analytics() {
         </div>
 
         {/* Metric 3 */}
-        <div className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between group hover:border-[#ffb783]/25 transition-all">
+        <div className="premium-card lift-on-hover p-5 rounded-2xl flex flex-col justify-between group">
           <div className="flex justify-between items-start opacity-75 mb-2">
             <span className="font-mono text-[10px] text-[#ffb783] uppercase tracking-wider">Common Trigger</span>
             <BarChart className="w-4 h-4 text-tertiary" />
@@ -98,7 +149,7 @@ export default function Analytics() {
         </div>
 
         {/* Metric 4 */}
-        <div className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between group hover:border-secondary/25 transition-all">
+        <div className="premium-card lift-on-hover p-5 rounded-2xl flex flex-col justify-between group">
           <div className="flex justify-between items-start opacity-75 mb-2">
             <span className="font-mono text-[10px] text-[#ddb7ff] uppercase tracking-wider">Model Accuracy</span>
             <Award className="w-4 h-4 text-[#ddb7ff]" />
@@ -113,10 +164,10 @@ export default function Analytics() {
       </div>
 
       {/* Main Double Graphs Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 select-none">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 select-none">
         
         {/* Left Side: Escalation Drift Timeline Flow Chart */}
-        <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between h-[320px] relative">
+        <div className="premium-card lift-on-hover p-6 rounded-2xl flex flex-col justify-between h-[320px] relative">
           <div>
             <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">
               Hourly Escalation Spikes
@@ -145,7 +196,7 @@ export default function Analytics() {
         </div>
 
         {/* Right Side: Latency Metrics and Confidence Bands Grid */}
-        <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 h-[320px] flex flex-col justify-between">
+        <div className="premium-card lift-on-hover p-6 rounded-2xl h-[320px] flex flex-col justify-between">
           <div>
             <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">
               Class Confidence Telemetry
@@ -193,6 +244,24 @@ export default function Analytics() {
           </div>
         </div>
 
+      </div>
+
+      <div className="premium-card rounded-2xl p-5">
+        <h3 className="font-sans text-sm font-bold text-white mb-3">Actionable Insights</h3>
+        <div className="grid md:grid-cols-3 gap-3 text-sm">
+          <div className="rounded-xl border border-error/25 bg-error/10 p-3">
+            <p className="font-semibold text-error">High friction theme</p>
+            <p className="text-on-surface-variant mt-1">Billing/refund tickets are driving most escalations.</p>
+          </div>
+          <div className="rounded-xl border border-tertiary/25 bg-tertiary/10 p-3">
+            <p className="font-semibold text-tertiary">Team recommendation</p>
+            <p className="text-on-surface-variant mt-1">Assign one agent to first-response within 2 minutes.</p>
+          </div>
+          <div className="rounded-xl border border-primary/25 bg-primary/10 p-3">
+            <p className="font-semibold text-primary">Process fix</p>
+            <p className="text-on-surface-variant mt-1">Add proactive refund status updates in customer emails.</p>
+          </div>
+        </div>
       </div>
 
     </div>

@@ -27,11 +27,11 @@ export default function Settings() {
     <div className="space-y-6 animate-fadeIn">
       
       {/* View Header */}
-      <div className="flex justify-between items-center pb-4 border-b border-white/5 select-none">
+      <div className="premium-card rounded-2xl px-5 py-4 flex justify-between items-center select-none">
         <div>
-          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">System Configurations</h2>
+          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Settings</h2>
           <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
-            Tweak classifier sensitivity thresholds & SLA escalation models
+            Adjust analysis behavior and escalation preferences
           </p>
         </div>
       </div>
@@ -40,14 +40,14 @@ export default function Settings() {
         
         {/* Config Form Column (2/3 width) */}
         <div className="lg:col-span-2">
-          <form onSubmit={handleSave} className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 space-y-6 select-none font-sans">
+          <form onSubmit={handleSave} className="premium-card rounded-2xl p-6 space-y-6 select-none font-sans">
             
             {/* Setting Item 1: Classifier Sensitivity Slider */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
                 <label className="text-white font-bold inline-flex items-center gap-2">
-                  <span>Inference Velocity Trigger Coefficient</span>
-                  <HelpCircle className="w-3.5 h-3.5 text-on-surface-variant/50 cursor-help" title="Lower numbers trigger escalation alerts on smaller emotion drift steps." />
+                  <span>Escalation Sensitivity</span>
+                  <HelpCircle className="w-3.5 h-3.5 text-on-surface-variant/50 cursor-help" title="Lower values trigger alerts earlier. Higher values reduce alert frequency." />
                 </label>
                 <span className="font-mono text-primary font-bold">{sensitivityVal}% Sensitivity</span>
               </div>
@@ -68,9 +68,9 @@ export default function Settings() {
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
                 <label className="text-white font-bold inline-flex items-center gap-2">
-                  <span>Aura Time Drift Bounds window</span>
+                  <span>Risk Tracking Window</span>
                 </label>
-                <span className="font-mono text-primary font-bold">{gracePeriodSec} seconds limit</span>
+                <span className="font-mono text-primary font-bold">{gracePeriodSec} seconds</span>
               </div>
               <input 
                 type="range"
@@ -82,16 +82,16 @@ export default function Settings() {
                 className="w-full accent-primary bg-white/5 rounded-lg h-2 cursor-pointer outline-none"
               />
               <p className="text-[10px] text-on-surface-variant/60 leading-tight">
-                Defines the sequential timeframe containing successive dialogue messages assessed for negative trajectory curves.
+                Defines how much recent conversation context is used while evaluating risk shifts.
               </p>
             </div>
 
             {/* Setting Item 3: Autonomous Toggle */}
             <div className="flex items-center justify-between p-4 bg-white/3 border border-white/5 rounded-xl">
               <div className="space-y-1 pr-6 text-left">
-                <span className="font-bold text-sm text-white block">Permit Autonomous Responses</span>
+                <span className="font-bold text-sm text-white block">Enable Autonomous Replies</span>
                 <span className="text-[11px] text-on-surface-variant/70 leading-relaxed block">
-                  Permits the system to reply automatically using empathetic language presets until drift thresholds is reached.
+                  Allows AI to continue replying automatically until escalation thresholds are reached.
                 </span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -107,7 +107,7 @@ export default function Settings() {
 
             {/* Setting Item 4: Model Engine Switcher */}
             <div className="space-y-3 select-none text-left">
-              <label className="text-xs text-white font-bold block">Transformer Backing Model Engine</label>
+              <label className="text-xs text-white font-bold block">Model Selection</label>
               
               <div className="grid grid-cols-2 gap-3">
                 {/* Option 1 */}
@@ -119,7 +119,7 @@ export default function Settings() {
                       : 'bg-white/3 border-white/5 text-on-surface-variant hover:text-white'
                   }`}
                 >
-                  <span className="font-bold text-xs font-mono">DISTILBERT (6-Layer)</span>
+                  <span className="font-bold text-xs font-mono">DistilBERT (Fast)</span>
                   <span className="text-[10px] leading-relaxed mt-2 block opacity-70">
                     High responsiveness, nominal CPU/GPU footprints, 42ms processing benchmarks.
                   </span>
@@ -134,7 +134,7 @@ export default function Settings() {
                       : 'bg-white/3 border-white/5 text-on-surface-variant hover:text-white'
                   }`}
                 >
-                  <span className="font-bold text-xs font-mono">BERT-LARGE (24-Layer)</span>
+                  <span className="font-bold text-xs font-mono">BERT-Large (Deep)</span>
                   <span className="text-[10px] leading-relaxed mt-2 block opacity-70">
                     Deep contexts alignments, higher telemetry accuracy matrices, requires high-grade tensors.
                   </span>
@@ -148,7 +148,7 @@ export default function Settings() {
                 {isSaved && (
                   <span className="flex items-center gap-1.5 font-sans font-bold text-xs text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg animate-fadeIn">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Configurations Saved Success!</span>
+                    <span>Settings saved</span>
                   </span>
                 )}
               </div>
@@ -157,7 +157,7 @@ export default function Settings() {
                 type="submit"
                 className="py-3 px-6 font-sans font-bold text-xs text-white bg-gradient-to-r from-inverse-primary to-secondary-container hover:shadow-[0_0_15px_rgba(111,0,190,0.3)] hover:scale-105 rounded-xl cursor-pointer transition-all duration-200"
               >
-                Save Changes Override
+                Save Changes
               </button>
             </div>
 
@@ -168,9 +168,9 @@ export default function Settings() {
         <div className="lg:col-span-1 space-y-6 select-none font-sans">
           
           {/* Telemetry Status Metrics */}
-          <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 space-y-4">
+          <div className="premium-card lift-on-hover rounded-2xl p-6 space-y-4">
             <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">
-              Active Server Telemetry
+              System Status
             </h3>
 
             <div className="space-y-3 font-mono text-[11px] hover:text-on-surface transition-colors leading-relaxed">
@@ -194,11 +194,11 @@ export default function Settings() {
           </div>
 
           {/* Model Script API Snippet */}
-          <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 space-y-4">
+          <div className="premium-card lift-on-hover rounded-2xl p-6 space-y-4">
             <div className="flex items-center gap-2 text-primary">
               <FileCode className="w-4 h-4" />
               <h3 className="font-sans text-xs font-bold uppercase tracking-widest leading-none">
-                GoEmotions Python API
+                Model API Snippet
               </h3>
             </div>
             

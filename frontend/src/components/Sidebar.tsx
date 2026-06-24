@@ -18,40 +18,58 @@ interface SidebarProps {
   setActiveTab: (tab: TabName) => void;
   onNewAnalysisClick: () => void;
   unreadAlertsCount: number;
+  onShowToast: (message: string, kind?: 'info' | 'success' | 'warning') => void;
+  isDemoMode: boolean;
+  onSignOut: () => void;
+  userRole: 'admin' | 'agent' | 'viewer';
+  userEmail: string;
+  isVerified: boolean;
 }
 
 export default function Sidebar({ 
   activeTab, 
   setActiveTab, 
   onNewAnalysisClick,
-  unreadAlertsCount 
+  unreadAlertsCount,
+  onShowToast,
+  isDemoMode,
+  onSignOut,
+  userRole,
+  userEmail,
+  isVerified
 }: SidebarProps) {
+  const emailPrefix = userEmail.split('@')[0] || 'user';
+  const initials = emailPrefix.slice(0, 2).toUpperCase();
   return (
     <aside 
-      className="flex flex-col h-screen w-64 fixed left-0 top-0 bg-[#090e17]/85 backdrop-blur-2xl border-r border-white/5 shadow-2xl shadow-primary/5 p-6 z-50 select-none overflow-y-auto"
+      className="flex flex-col h-screen w-64 fixed left-0 top-0 bg-[#0b111d]/75 backdrop-blur-2xl border-r border-white/10 shadow-2xl shadow-black/40 p-5 z-50 select-none overflow-y-auto"
       id="sentience-sidebar"
     >
       {/* Brand Header */}
       <div 
-        className="mb-8 cursor-pointer group"
+        className="mb-6 cursor-pointer group premium-card rounded-2xl p-4"
         onClick={() => setActiveTab('landing-page')}
         title="Go to Product Overview"
       >
         <div className="flex items-center gap-2">
           <Sparkles className="w-6 h-6 text-primary animate-pulse group-hover:scale-110 transition-transform duration-300" />
           <h1 className="font-sans text-2xl font-bold tracking-tight text-white group-hover:text-primary transition-colors">
-            Sentience
+            Emotion Assist
           </h1>
         </div>
-        <p className="font-mono text-[10px] text-on-surface-variant/60 uppercase tracking-widest mt-1">
-          Active Monitoring
+        <p className="font-mono text-[10px] text-on-surface-variant/75 uppercase tracking-widest mt-1">
+          Customer Support Dashboard
         </p>
+        <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] text-primary bg-primary/12 border border-primary/20">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          Role: {userRole}
+        </div>
       </div>
 
       {/* Navigation Group */}
-      <nav className="flex-1 space-y-1.5">
+      <nav className="flex-1 space-y-1">
         <p className="font-mono text-[10px] text-on-surface-variant/40 uppercase tracking-widest px-3 mb-2">
-          CONSOLES
+          MAIN MENU
         </p>
         
         {/* Landing Page Link */}
@@ -59,15 +77,15 @@ export default function Sidebar({
           onClick={() => setActiveTab('landing-page')}
           className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
             activeTab === 'landing-page'
-              ? 'bg-white/5 text-primary border-l-2 border-primary shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
+              ? 'bg-primary/12 text-primary border border-primary/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)]'
+              : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
           }`}
         >
           <div className="flex items-center gap-3">
             <BookOpen className="w-4 h-4" />
-            <span>Product Tour</span>
+            <span>Overview</span>
           </div>
-          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-on-surface-variant/60 font-semibold">Intro</span>
+          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-on-surface-variant/60 font-semibold">Start</span>
         </button>
 
         {/* Live Stream Controller */}
@@ -75,13 +93,13 @@ export default function Sidebar({
           onClick={() => setActiveTab('live-stream')}
           className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
             activeTab === 'live-stream'
-              ? 'bg-primary-container/10 text-primary border-l-2 border-primary shadow-[0_4px_12px_rgba(99,102,241,0.05)]'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
+              ? 'bg-primary/12 text-primary border border-primary/30 shadow-[0_6px_14px_rgba(99,102,241,0.10)]'
+              : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
           }`}
         >
           <div className="flex items-center gap-3">
             <Radio className="w-4 h-4" />
-            <span>Live Stream</span>
+            <span>Live Chat</span>
           </div>
           <span className="flex h-2 w-2 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
@@ -90,7 +108,7 @@ export default function Sidebar({
         </button>
 
         <p className="font-mono text-[10px] text-on-surface-variant/40 uppercase tracking-widest px-3 pt-6 mb-2">
-          ANALYTICS & ESCALATION
+          INSIGHTS
         </p>
 
         {/* Analytics View */}
@@ -98,8 +116,8 @@ export default function Sidebar({
           onClick={() => setActiveTab('analytics')}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
             activeTab === 'analytics'
-              ? 'bg-white/5 text-primary border-l-2 border-primary'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
+              ? 'bg-primary/12 text-primary border border-primary/30'
+              : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
           }`}
         >
           <BarChart3 className="w-4 h-4" />
@@ -111,12 +129,12 @@ export default function Sidebar({
           onClick={() => setActiveTab('drift-history')}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
             activeTab === 'drift-history'
-              ? 'bg-white/5 text-primary border-l-2 border-primary'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
+              ? 'bg-primary/12 text-primary border border-primary/30'
+              : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
           }`}
         >
           <History className="w-4 h-4" />
-          <span>Drift History</span>
+          <span>Conversation History</span>
         </button>
 
         {/* Alerts Center */}
@@ -124,8 +142,8 @@ export default function Sidebar({
           onClick={() => setActiveTab('alerts')}
           className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
             activeTab === 'alerts'
-              ? 'bg-white/5 text-primary border-l-2 border-primary'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
+              ? 'bg-primary/12 text-primary border border-primary/30'
+              : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -140,55 +158,90 @@ export default function Sidebar({
         </button>
 
         {/* Team roster */}
-        <button
-          onClick={() => setActiveTab('team')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
-            activeTab === 'team'
-              ? 'bg-white/5 text-primary border-l-2 border-primary'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Team Roster</span>
-        </button>
+        {userRole !== 'viewer' && (
+          <button
+            onClick={() => setActiveTab('team')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
+              activeTab === 'team'
+                ? 'bg-primary/12 text-primary border border-primary/30'
+                : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Support Team</span>
+          </button>
+        )}
 
         {/* System Settings */}
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
-            activeTab === 'settings'
-              ? 'bg-white/5 text-primary border-l-2 border-primary'
-              : 'text-on-surface-variant/75 hover:bg-white/3 hover:text-white'
-          }`}
-        >
-          <SettingsIcon className="w-4 h-4" />
-          <span>Settings</span>
-        </button>
+        {userRole !== 'viewer' && (
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-sans text-sm font-medium transition-all duration-300 ${
+              activeTab === 'settings'
+                ? 'bg-primary/12 text-primary border border-primary/30'
+                : 'text-on-surface-variant/75 hover:bg-white/6 hover:text-white border border-transparent'
+            }`}
+          >
+            <SettingsIcon className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
+        )}
       </nav>
 
       {/* Bottom Actions */}
-      <div className="pt-6 border-t border-white/5 space-y-4">
+      <div className="pt-5 border-t border-white/10 space-y-3">
+        <div className="premium-card rounded-xl px-3 py-3 border border-white/10">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 text-primary text-xs font-bold flex items-center justify-center">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-on-surface-variant/60 uppercase tracking-widest">Logged in as</p>
+              <p className="text-xs text-white truncate">{userEmail}</p>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[10px]">
+            <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-on-surface-variant uppercase">
+              {userRole}
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded-full border uppercase ${
+                isVerified
+                  ? 'bg-primary/10 border-primary/30 text-primary'
+                  : 'bg-tertiary/10 border-tertiary/30 text-tertiary'
+              }`}
+            >
+              {isVerified ? 'Verified' : 'Unverified'}
+            </span>
+          </div>
+        </div>
+
         {/* Dynamic New Support Simulation Prompt Button */}
         <button 
           onClick={onNewAnalysisClick}
-          className="w-full font-sans font-bold text-sm text-white bg-gradient-to-r from-inverse-primary to-secondary-container hover:shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-[1.02] active:scale-[0.98] py-3.5 rounded-xl flex items-center justify-center gap-2 select-none border border-white/5 cursor-pointer transition-all duration-300"
-          title="Simulate high-risk user chats"
+          className="w-full font-sans font-bold text-sm text-white bg-gradient-to-r from-inverse-primary to-secondary-container hover:shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-[1.02] active:scale-[0.98] py-3 rounded-xl flex items-center justify-center gap-2 select-none border border-white/15 cursor-pointer transition-all duration-300"
+          title={isDemoMode ? "Simulate high-risk user chats" : "Enabled in demo mode"}
         >
           <Plus className="w-4 h-4 text-white" />
-          <span>New Analysis</span>
+          <span>{isDemoMode ? 'New Analysis' : 'New Analysis (Demo)'}</span>
         </button>
 
         <div className="space-y-1">
           <a 
             href="#support"
-            onClick={(e) => { e.preventDefault(); alert("Sentience Admin Help Center: support@sentience.ai"); }}
+            onClick={(e) => {
+              e.preventDefault();
+              onShowToast('Help center: support@sentience.ai', 'info');
+            }}
             className="flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant/70 hover:text-white hover:bg-white/3 text-xs font-sans transition-all duration-150"
           >
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>Support Wiki</span>
+            <span>Help Center</span>
           </a>
           <button 
-            onClick={() => { if (confirm("Sign out of current Sentience session?")) alert("Demo session reset! Relocate tabs in sidebar."); }}
+            onClick={() => {
+              onSignOut();
+            }}
             className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-on-surface-variant/70 hover:text-white hover:bg-white/3 text-xs font-sans transition-all duration-150 text-left"
           >
             <LogOut className="w-3.5 h-3.5" />

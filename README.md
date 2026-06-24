@@ -179,3 +179,53 @@ For complete, detailed cloud deployment scripts, refer to [deployment_instructio
 - **CORS Protection**: Enforces strict origin matching utilizing `fastapi.middleware.cors`.
 - **Large File Management**: Model checkpoint matrices (`model.safetensors`, 268MB) are tracked via Git LFS (`.gitattributes`) to prevent sync blocks.
 - **Memory Optimization**: Uses optimized batch sizes and CPU PyTorch libraries to maintain RAM footprint below `1.5 GB` in standard container instances.
+
+---
+
+## Production Operations Checklist
+
+### Pre-Deploy
+- Set frontend env values in `frontend/.env.example` (`VITE_API_URL`, `VITE_APP_MODE=production`, `VITE_API_TIMEOUT_MS`).
+- Set backend env values from `.env.production.example` (`APP_ENV=production`, `CORS_ALLOWED_ORIGINS`, `TRUSTED_HOSTS`, `PORT`, `LOG_LEVEL`).
+- Use strong secrets (`AUTH_SECRET_KEY`, `SESSION_SECRET`) with at least 32 characters.
+- Keep `AUTH_EXPOSE_TOKENS=false` in production.
+- Run quality gates locally:
+  - `npm run lint --prefix frontend`
+  - `npm run test --prefix frontend`
+  - `npm run build --prefix frontend`
+  - `pytest -q`
+
+### Health Checks
+- Backend readiness: `GET /health` should return `{ "status": "ok" }`.
+- API runtime headers should include `x-request-id` and `x-process-time-ms`.
+- API security headers should include `x-content-type-options`, `x-frame-options`, and `referrer-policy`.
+- Frontend operator badge in Live Stream should report `API_LINK: ONLINE`.
+
+### Authentication
+- Users can sign in with email/password or OAuth (`Google`, `GitHub`).
+- New local accounts must verify email before accessing protected prediction routes.
+- Password reset uses secure one-time tokens (`/auth/forgot-password` -> `/auth/reset-password`).
+- API endpoints `/predict-emotion`, `/predict`, and `/timeline` require a verified bearer token.
+- `/reset` and role-management endpoints are role-gated (`admin`/`agent` only for reset, `admin` only for user-role management).
+- Auth routes:
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `GET /auth/me`
+  - `POST /auth/resend-verification`
+  - `POST /auth/verify-email`
+  - `POST /auth/forgot-password`
+  - `POST /auth/reset-password`
+  - `GET /auth/oauth/google/start`
+  - `GET /auth/oauth/github/start`
+  - `GET /auth/users` (admin)
+  - `PATCH /auth/users/{user_id}/role` (admin)
+
+### Rollback Guide
+- Keep previous frontend deployment alias in Vercel and redeploy previous successful build.
+- Revert backend container/image to last known working commit in Hugging Face Space.
+- If incident scope is unknown, rotate to prior commit and disable new feature flags by keeping `VITE_APP_MODE=production`.
+
+### Incident Debugging Basics
+- Inspect backend request logs for request path, status code, request id, and response latency.
+- Use `/timeline?session_id=<id>` to inspect ticket-scoped inference state.
+- If frontend shows API offline, verify backend host reachability and CORS allowlist mismatch first.

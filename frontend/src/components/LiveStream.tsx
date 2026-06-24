@@ -13,12 +13,18 @@ import {
   TrendingUp,
   BrainCircuit,
   MessageSquareWarning,
-  Activity
+  Activity,
+  Copy,
+  Search,
+  Filter
 } from 'lucide-react';
 import { Ticket, Message, Emotion, TeamMember } from '../types';
 import { EMOTIONS, MOCK_TICKETS, MOCK_TEAM_MEMBERS } from '../data/mockData';
+import { apiClient, ApiError } from '../lib/api';
+import { runtimeConfig } from '../config/runtime';
+import { useTelemetryLogs } from '../hooks/useTelemetryLogs';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = runtimeConfig.apiBaseUrl;
 
 // Centralized Emotion Normalizer Layer
 const normalizeEmotion = (rawLabel: string): string => {
@@ -172,7 +178,12 @@ const getEmotionProfile = (name: string, intensity: number = 85): Emotion => {
 };
 
 // Helper to map 28 GoEmotions labels to UI styled Emotion
-const mapBackendEmotion = (backendEmotion: string, confidence: number, text: string = ''): Emotion => {
+const mapBackendEmotion = (
+  backendEmotion: string,
+  confidence: number,
+  text: string = '',
+  strictMode: boolean = false
+): Emotion => {
   const lowerText = text.toLowerCase().trim();
   const rawNormalized = normalizeEmotion(backendEmotion);
 
@@ -185,6 +196,17 @@ const mapBackendEmotion = (backendEmotion: string, confidence: number, text: str
 
   let finalEmotionName = rawNormalized;
   let intensity = Math.round(confidence * 100);
+
+  // Production accuracy mode: trust backend emotion mapping directly.
+  if (strictMode) {
+    const profile = getEmotionProfile(finalEmotionName, intensity);
+    profile.isFallbackActive = confidence < 0.40;
+    profile.isOverrideActive = false;
+    profile.isSarcasmActive = false;
+    profile.isOperationalActive = false;
+    profile.isEscalationActive = false;
+    return profile;
+  }
 
   // 1. Explicit Emotion Override Layer (Priority 1)
   // These should override weak predictions (confidence < 0.40 or prediction is NEUTRAL)
@@ -463,13 +485,17 @@ interface LiveStreamProps {
   teamMembers: TeamMember[];
   activeScenario: any;
   onClearScenario: () => void;
+  onShowToast: (message: string, kind?: 'info' | 'success' | 'warning') => void;
+  isDemoMode: boolean;
 }
 
 export default function LiveStream({ 
   onAddEscalation, 
   teamMembers,
   activeScenario,
-  onClearScenario
+  onClearScenario,
+  onShowToast,
+  isDemoMode
 }: LiveStreamProps) {
   // Simulator State
   const [tickets, setTickets] = useState<Ticket[]>(MOCK_TICKETS);
@@ -477,10 +503,14 @@ export default function LiveStream({
   const [inputValue, setInputValue] = useState<string>('');
   const [isTyping, setIsTyping] = useState<boolean>(false);
   const [currentTimeText, setCurrentTimeText] = useState<string>('12:05 PM');
+  const [ticketSearchQuery, setTicketSearchQuery] = useState<string>('');
+  const [ticketViewFilter, setTicketViewFilter] = useState<'all' | 'priority' | 'escalated' | 'active'>('all');
 
   // Developer test panel states
   const [devPanelOpen, setDevPanelOpen] = useState<boolean>(false);
   const [isRunningTests, setIsRunningTests] = useState<boolean>(false);
+  const [isSendingMessage, setIsSendingMessage] = useState<boolean>(false);
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
 
   interface TestCaseResult {
     phrase: string;
@@ -536,23 +566,21 @@ export default function LiveStream({
         let isBackendOnline = false;
 
         try {
-          const res = await fetch(`${API_BASE_URL}/predict-emotion`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: testCase.phrase })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            emotionLabel = data.emotion;
-            confidenceScore = data.confidence;
-            baseDrift = data.drift_score;
-            isBackendOnline = true;
-          }
+          const data = await apiClient.predictEmotion({ message: testCase.phrase });
+          emotionLabel = data.emotion;
+          confidenceScore = data.confidence;
+          baseDrift = data.drift_score;
+          isBackendOnline = true;
         } catch (e) {
           // Fall back silently to mock backend classification if server is offline
         }
 
-        const mappedEmotion = mapBackendEmotion(emotionLabel, confidenceScore, testCase.phrase);
+        const mappedEmotion = mapBackendEmotion(
+          emotionLabel,
+          confidenceScore,
+          testCase.phrase,
+          !isDemoMode
+        );
         
         let finalDrift = baseDrift;
         let finalRisk = 'LOW';
@@ -631,17 +659,7 @@ export default function LiveStream({
     addTelemetryLog("[TEST SUITE] Verification suite complete.");
   };
 
-  // Live Telemetry Logs Terminal State
-  const [telemetryLogs, setTelemetryLogs] = useState<string[]>([
-    `[${new Date().toLocaleTimeString()}] Live Telemetry Engine active.`,
-    `[${new Date().toLocaleTimeString()}] Tracked model parameters: GoEmotions V2 DistilBERT.`,
-    `[${new Date().toLocaleTimeString()}] Dynamic Drift Memory compounded check active.`
-  ]);
-
-  const addTelemetryLog = (msg: string) => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setTelemetryLogs(prev => [`[${timestamp}] ${msg}`, ...prev].slice(0, 40));
-  };
+  const { telemetryLogs, addTelemetryLog } = useTelemetryLogs();
 
   
   // Escalation flow state
@@ -663,6 +681,23 @@ export default function LiveStream({
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const activeTicket = tickets.find(t => t.id === selectedTicketId) || tickets[0];
+  const visibleTickets = tickets
+    .filter((ticket) => {
+      const query = ticketSearchQuery.trim().toLowerCase();
+      const matchesSearch = query
+        ? `${ticket.id} ${ticket.customerName} ${ticket.subject}`.toLowerCase().includes(query)
+        : true;
+      const matchesFilter =
+        ticketViewFilter === 'all'
+          ? true
+          : ticketViewFilter === 'priority'
+            ? ticket.driftScore >= 0.65
+            : ticketViewFilter === 'escalated'
+              ? ticket.status === 'escalated'
+              : ticket.status === 'active' || ticket.status === 'snoozed';
+      return matchesSearch && matchesFilter;
+    })
+    .sort((a, b) => b.driftScore - a.driftScore);
 
   // Stop active simulation
   const stopActiveSimulation = () => {
@@ -823,6 +858,26 @@ export default function LiveStream({
     return () => clearInterval(interval);
   }, []);
 
+  // Backend connectivity state for production-safe operator awareness.
+  useEffect(() => {
+    let mounted = true;
+    const checkHealth = async () => {
+      try {
+        await apiClient.health();
+        if (mounted) setBackendOnline(true);
+      } catch {
+        if (mounted) setBackendOnline(false);
+      }
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 15000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
@@ -834,10 +889,10 @@ export default function LiveStream({
 
   // Trigger simulation when activeScenario updates
   useEffect(() => {
-    if (activeScenario) {
+    if (activeScenario && isDemoMode) {
       startSimulation(activeScenario);
     }
-  }, [activeScenario]);
+  }, [activeScenario, isDemoMode]);
 
   // Stop simulation if user manually shifts to a different ticket
   useEffect(() => {
@@ -882,34 +937,29 @@ export default function LiveStream({
   // Submit Simulated Client Prompt
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isSendingMessage) return;
 
     const userText = inputValue;
     setInputValue('');
+    setIsSendingMessage(true);
 
     // Start loading state (analyzing sentiment index)
     setIsTyping(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/predict-emotion`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: userText }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Server returned an error status');
-      }
-
-      const data = await response.json();
+      const data = await apiClient.predictEmotion({ message: userText });
+      setBackendOnline(true);
       // Backend response keys: emotion, confidence, drift_score, risk_level, escalation_required
       let { emotion: backendEmotion, confidence, drift_score, risk_level, escalation_required } = data;
+      const backendDriftScore = drift_score;
+      const backendRiskLevel = risk_level;
+      const backendEscalationRequired = escalation_required;
       const lowerText = userText.toLowerCase();
 
       // Map backend predicted emotion to UI styled Emotion
-      const mappedEmotion = { ...mapBackendEmotion(backendEmotion, confidence, userText) };
+      const mappedEmotion = {
+        ...mapBackendEmotion(backendEmotion, confidence, userText, !isDemoMode),
+      };
       
       // Extract customer messages history
       const customerMsgs = activeTicket.messages.filter(m => m.sender === 'customer');
@@ -1079,6 +1129,13 @@ export default function LiveStream({
         addTelemetryLog(`[ESCALATION ENFORCED] Reason: ${triggerReason}. Overriding drift score to ${finalDrift.toFixed(2)}.`);
       }
 
+      if (!isDemoMode) {
+        // In production mode, prioritize backend model output for better accuracy.
+        finalDrift = backendDriftScore;
+        finalRisk = backendRiskLevel;
+        finalEscalation = backendEscalationRequired;
+      }
+
       // Reassign local variables for the rest of the flow
       drift_score = finalDrift;
       risk_level = finalRisk;
@@ -1147,34 +1204,17 @@ export default function LiveStream({
     } catch (error) {
       console.error('Connection to backend failed:', error);
       setIsTyping(false);
-
-      // Add customer message anyway (so the text they typed is not lost), but with a neutral fallback or no emotion
-      const userMsg: Message = {
-        id: `msg-user-${Date.now()}`,
-        sender: 'customer',
-        text: userText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        latencyMs: 5
-      };
-
-      // Append backend offline error alert message
-      const errorMsg: Message = {
-        id: `msg-err-${Date.now()}`,
-        sender: 'ai',
-        text: `⚠️ Connection to Emotion Drift Detection backend failed. Please ensure your FastAPI server is running on ${API_BASE_URL} using 'uvicorn app:app --reload --port 8000'.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        latencyMs: 1
-      };
-
-      setTickets(prev => prev.map(t => {
-        if (t.id === selectedTicketId) {
-          return {
-            ...t,
-            messages: [...t.messages, userMsg, errorMsg]
-          };
-        }
-        return t;
-      }));
+      setBackendOnline(false);
+      onShowToast(
+        `Backend is unreachable at ${API_BASE_URL}. Check the API server and retry.`,
+        'warning'
+      );
+      addTelemetryLog('[CONNECTIVITY] Backend request failed. Operator retry suggested.');
+      if (error instanceof ApiError) {
+        addTelemetryLog(`[CONNECTIVITY] Error detail: ${error.message}`);
+      }
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -1193,7 +1233,8 @@ export default function LiveStream({
       }
       return t;
     }));
-    alert("Escalation risk triggers snoozed for TKT-8492. Alerts reassigned to lower priority.");
+    onShowToast('Escalation risk snoozed and priority reduced for active ticket.', 'success');
+    addTelemetryLog('[ACTION] Operator snoozed escalation workflow for current ticket.');
   };
 
   // Transfer Ticket to Representative
@@ -1218,14 +1259,43 @@ export default function LiveStream({
       return t;
     }));
 
-    alert(`Ticket TKT-8492 successfully handed over to ${targetAgent.name} (${targetAgent.role}). Real-time stream synchronized.`);
+    onShowToast(
+      `Ticket transferred to ${targetAgent.name} (${targetAgent.role}).`,
+      'success'
+    );
+    addTelemetryLog(`[ACTION] Ticket handed over to ${targetAgent.name} (${targetAgent.role}).`);
+  };
+
+  const handleCopyCaseSummary = async () => {
+    const lastCustomerMessage = [...activeTicket.messages]
+      .reverse()
+      .find((message) => message.sender === 'customer');
+    const summary = [
+      `Ticket: ${activeTicket.id}`,
+      `Customer: ${activeTicket.customerName}`,
+      `Topic: ${activeTicket.subject}`,
+      `Current Emotion: ${activeTicket.dominantEmotion}`,
+      `Risk Score: ${Math.round(activeTicket.driftScore * 100)}%`,
+      `Status: ${activeTicket.status}`,
+      `Assigned Agent: ${activeTicket.assignedAgent || 'Unassigned'}`,
+      `Latest Customer Message: ${lastCustomerMessage?.text || 'No customer message yet'}`,
+      `Recommended Action: ${riskValue > 70 ? 'Escalate to senior support immediately' : riskValue > 30 ? 'Monitor with proactive reassurance' : 'Continue normal workflow'}`,
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(summary);
+      onShowToast('Case summary copied to clipboard.', 'success');
+      addTelemetryLog(`[ACTION] Case summary copied for ${activeTicket.id}.`);
+    } catch {
+      onShowToast('Unable to copy summary. Please copy manually.', 'warning');
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       
       {/* Header telemetry display */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-white/5 select-none">
+      <header className="premium-card rounded-2xl px-5 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 select-none">
         <div className="flex items-center gap-3">
           {/* Pulsing state orbit matched to risk value */}
           <div className="relative flex h-3.5 w-3.5">
@@ -1236,77 +1306,153 @@ export default function LiveStream({
           </div>
           <div>
             <h2 className="font-sans text-xl md:text-2xl font-bold text-white">
-              Emotion Drift Active Monitor
+              Live Customer Sentiment Monitor
             </h2>
             <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
-              DistilBERT-powered GoEmotions live classification
+              AI-powered emotion detection from live conversation text
             </p>
           </div>
         </div>
 
         {/* Global indicators */}
-        <div className="flex items-center gap-4 bg-white/3 px-4 py-2 rounded-xl border border-white/5">
+        <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
           <div className="text-right">
-            <span className="font-mono text-[9px] text-on-surface-variant/40 block">SYS_STATUS</span>
+            <span className="font-mono text-[9px] text-on-surface-variant/40 block">API_LINK</span>
+            <span className={`font-mono text-xs font-bold ${
+              backendOnline === null
+                ? 'text-on-surface-variant'
+                : backendOnline
+                  ? 'text-primary'
+                  : 'text-error'
+            }`}>
+              {backendOnline === null ? 'CHECKING' : backendOnline ? 'ONLINE' : 'OFFLINE'}
+            </span>
+          </div>
+          <div className="h-8 w-[1px] bg-white/10"></div>
+          <div className="text-right">
+            <span className="font-mono text-[9px] text-on-surface-variant/40 block">SYSTEM_STATUS</span>
             <span className={`font-mono text-xs font-bold ${riskValue > 70 ? 'text-error animate-pulse' : 'text-primary'}`}>
               {riskValue > 70 ? 'ATTENTION REQUIRED' : 'OPERATIONAL'}
             </span>
           </div>
           <div className="h-8 w-[1px] bg-white/10"></div>
           <div className="text-right">
-            <span className="font-mono text-[9px] text-on-surface-variant/40 block">MODEL_ID</span>
+            <span className="font-mono text-[9px] text-on-surface-variant/40 block">MODEL</span>
             <span className="font-mono text-xs font-bold text-white">GOEMO_V2</span>
           </div>
         </div>
       </header>
 
+      {backendOnline === false && (
+        <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 flex items-center justify-between gap-4">
+          <p className="text-sm text-error">
+            Backend is offline. Live emotion analysis is temporarily unavailable.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await apiClient.health();
+                setBackendOnline(true);
+                onShowToast('Backend connection restored.', 'success');
+              } catch {
+                onShowToast('Backend still unreachable. Verify API server health.', 'warning');
+              }
+            }}
+            className="px-3 py-1.5 rounded-lg bg-error/20 border border-error/40 text-error text-xs font-semibold hover:bg-error/30 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Ticket quick filter selector tabs */}
-      <div className="flex flex-wrap gap-2 py-1 select-none">
-        {tickets.map(t => (
+      <div className="space-y-3 py-1.5 select-none">
+        <div className="premium-card rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+            <Search className="w-4 h-4 text-on-surface-variant/70" />
+            <input
+              value={ticketSearchQuery}
+              onChange={(e) => setTicketSearchQuery(e.target.value)}
+              placeholder="Search ticket id, customer, or issue topic..."
+              className="w-full bg-transparent text-sm text-white placeholder:text-on-surface-variant/50 outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <Filter className="w-3.5 h-3.5 text-on-surface-variant/70" />
+            {(['all', 'priority', 'escalated', 'active'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setTicketViewFilter(option)}
+                className={`px-2.5 py-1 rounded-lg border uppercase transition-all ${
+                  ticketViewFilter === option
+                    ? 'bg-primary/15 border-primary/30 text-primary'
+                    : 'bg-white/5 border-white/10 text-on-surface-variant hover:text-white'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+        {visibleTickets.map(t => (
           <button
             key={t.id}
             onClick={() => {
               setSelectedTicketId(t.id);
               setIsTransferred(false);
             }}
-            className={`px-4 py-2 rounded-xl text-xs font-sans font-semibold border transition-all duration-200 cursor-pointer flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-xl text-xs font-sans font-semibold border transition-all duration-200 cursor-pointer flex items-center gap-2 lift-on-hover ${
               selectedTicketId === t.id
-                ? 'bg-primary/10 text-primary border-primary/20 shadow-[0_2px_12px_rgba(192,193,255,0.06)]'
-                : 'bg-white/3 text-on-surface-variant hover:bg-white/5 border-white/5 hover:text-white'
+                ? 'bg-primary/15 text-primary border-primary/35 shadow-[0_6px_16px_rgba(192,193,255,0.12)]'
+                : 'bg-white/5 text-on-surface-variant hover:bg-white/10 border-white/10 hover:text-white'
             }`}
           >
             <span>{t.id}</span>
             <span className="w-1.5 h-1.5 rounded-full bg-white/20"></span>
             <span className="opacity-60 font-normal">{t.customerName}</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              t.driftScore >= 0.8 ? 'bg-error/15 text-error' : t.driftScore >= 0.55 ? 'bg-tertiary/15 text-tertiary' : 'bg-primary/15 text-primary'
+            }`}>
+              {Math.round(t.driftScore * 100)}%
+            </span>
           </button>
         ))}
+        {visibleTickets.length === 0 && (
+          <div className="w-full text-center py-6 premium-card rounded-xl text-sm text-on-surface-variant">
+            No tickets match the current search/filter.
+          </div>
+        )}
+        </div>
       </div>
 
       {/* 2-Column Console Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
         {/* Column Left: Live Chat Window (8/12 scope) */}
-        <div className="lg:col-span-8 flex flex-col h-[580px] bg-white/[0.02] border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative">
+        <div className="lg:col-span-8 flex flex-col h-[610px] premium-card rounded-2xl overflow-hidden relative">
           
           {/* Chat Window Header */}
-          <div className="px-5 py-4 border-b border-white/5 bg-white/3 flex justify-between items-center select-none">
+          <div className="px-5 py-4 border-b border-white/10 bg-gradient-to-r from-white/8 to-white/4 flex justify-between items-center select-none">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center font-mono text-xs text-primary font-bold">
                 #
               </div>
               <div>
                 <h3 className="font-sans font-bold text-sm text-white">
-                  Live Stream Stream Classifier: {activeTicket.id}
+                  Active Conversation: {activeTicket.id}
                 </h3>
                 <p className="font-mono text-[10px] text-on-surface-variant/60 leading-none mt-1">
-                  SUBJECT: {activeTicket.subject}
+                  Topic: {activeTicket.subject}
                 </p>
               </div>
             </div>
             
             {/* Realtime telemetry latency display */}
             <div className="flex items-center gap-4">
-              {simulationActive && (
+              {isDemoMode && simulationActive && (
                 <button
                   type="button"
                   onClick={stopActiveSimulation}
@@ -1316,7 +1462,7 @@ export default function LiveStream({
                   Stop Simulation
                 </button>
               )}
-              <span className="font-sans text-[11px] font-bold text-on-surface-variant/40 border border-white/5 bg-white/3 px-2 rounded font-mono">
+              <span className="font-sans text-[11px] font-bold text-on-surface-variant/60 border border-white/10 bg-white/5 px-2.5 py-1 rounded-lg font-mono">
                 LATENCY: {activeTicket.latencyMs}MS
               </span>
             </div>
@@ -1325,7 +1471,7 @@ export default function LiveStream({
           {/* Chat Area Messages Container */}
           <div 
             ref={chatContainerRef}
-            className="flex-1 overflow-y-auto p-5 space-y-4 bg-gradient-to-b from-[#090e17]/30 to-[#0f131d]/20 scroll-smooth"
+            className="flex-1 overflow-y-auto p-5 space-y-4 bg-gradient-to-b from-[#0c1320]/70 via-[#0b111c]/40 to-[#090e17]/30 scroll-smooth"
             id="chat-messages"
           >
             {activeTicket.messages.map((message) => {
@@ -1338,12 +1484,12 @@ export default function LiveStream({
                   className={`flex flex-col ${isCustomer ? 'items-start' : 'items-end ml-auto'} max-w-[85%] group animate-fadeIn`}
                 >
                   {/* Bubble content */}
-                  <div className={`relative px-4 py-3.5 rounded-2xl border transition-all duration-300 ${
+                  <div className={`relative px-4 py-3.5 rounded-2xl border transition-all duration-300 backdrop-blur-sm ${
                     isCustomer 
                       ? message.emotion?.isNegative 
-                        ? `${message.emotion.borderClass} ${(message.emotion?.name === 'ANGRY' || message.emotion?.name === 'FRUSTRATED') ? 'bg-error/5 shadow-[0_0_15px_rgba(255,180,171,0.05)]' : 'bg-tertiary/5'}` 
-                        : 'bg-[#1b2029]/80 border-white/5'
-                      : 'bg-primary-container/10 border-primary/20 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]'
+                        ? `${message.emotion.borderClass} ${(message.emotion?.name === 'ANGRY' || message.emotion?.name === 'FRUSTRATED') ? 'bg-error/8 shadow-[0_0_18px_rgba(255,180,171,0.08)]' : 'bg-tertiary/8'}`
+                        : 'bg-[#171e2c]/85 border-white/12'
+                      : 'bg-gradient-to-r from-primary-container/12 to-secondary/8 border-primary/25 text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)]'
                   }`}>
                     <p className={`font-sans text-sm outline-none ${isCustomer ? 'text-on-surface' : 'text-primary-fixed'}`}>
                       {message.text}
@@ -1437,15 +1583,16 @@ export default function LiveStream({
                   <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                   <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
-                <span className="uppercase tracking-widest pl-1 font-sans">Sentience is analyzing sentiment index...</span>
+                <span className="uppercase tracking-widest pl-1 font-sans">Analyzing sentiment...</span>
               </div>
             )}
           </div>
 
           {/* User input controller and quick prompt helper suggestions */}
-          <div className="p-4 bg-white/3 border-t border-white/5 select-none text-left">
+          <div className="p-4 bg-white/4 border-t border-white/10 select-none text-left">
             {/* Helpers suggestions */}
-            <div className="mb-3.5">
+            {isDemoMode && (
+              <div className="mb-3.5">
               <span className="font-mono text-[9px] text-on-surface-variant/40 block mb-1.5 uppercase">Simulate Customer Replies</span>
               <div className="flex flex-wrap gap-1.5">
                 <button 
@@ -1467,7 +1614,8 @@ export default function LiveStream({
                   "Oh thank goodness, solved..."
                 </button>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* TextInput Form container */}
             <form onSubmit={handleSendMessage} className="relative">
@@ -1476,27 +1624,32 @@ export default function LiveStream({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Enter custom customer simulated response..."
-                className="w-full bg-[#0a0f18] border border-white/10 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-xl px-4 py-3 text-sm text-white placeholder:text-on-surface-variant/40 outline-none transition-all pr-12"
+                disabled={isSendingMessage}
+                className="w-full bg-[#0d1320] border border-white/12 focus:border-primary/60 focus:ring-2 focus:ring-primary/25 rounded-xl px-4 py-3 text-sm text-white placeholder:text-on-surface-variant/40 outline-none transition-all pr-12"
               />
               <button 
                 type="submit" 
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() || isSendingMessage}
                 className="absolute right-2 top-2 p-1.5 rounded-lg text-primary bg-primary/5 hover:bg-primary/20 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
               >
-                <Send className="w-4 h-4" />
+                {isSendingMessage ? (
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
               </button>
             </form>
           </div>
         </div>
 
         {/* Column Right: AI Trajectory & Immediate Transfer Trigger Pane (4/12 scope) */}
-        <div className="lg:col-span-4 flex flex-col gap-6 select-none">
+        <div className="lg:col-span-4 flex flex-col gap-5 select-none">
           
           {/* 1. Emotion Trajectory Widget Container */}
-          <section className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col relative overflow-hidden select-none">
+          <section className="premium-card lift-on-hover p-5 rounded-2xl flex flex-col relative overflow-hidden select-none">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-                Aura Trajectory
+                Emotion Trend
               </h3>
               
               <span className={`px-2.5 py-1 bg-white/3 text-[10px] font-mono font-bold rounded-lg border transition-all ${
@@ -1506,7 +1659,7 @@ export default function LiveStream({
                     ? 'text-tertiary bg-tertiary/15 border-tertiary/20' 
                     : 'text-primary bg-primary/10 border-primary/20'
               }`}>
-                {riskValue > 70 ? 'DRIFT DETECTED' : 'STABLE'}
+                {riskValue > 70 ? 'RISK INCREASING' : 'STABLE'}
               </span>
             </div>
 
@@ -1557,21 +1710,21 @@ export default function LiveStream({
                 : 'bg-white/3 border-white/5'
             }`}>
               <h4 className={`text-xs font-bold font-sans ${riskValue > 70 ? 'text-error' : 'text-white'}`}>
-                {riskValue > 70 ? 'Sentiment Velocity Peaked' : 'Nominal Volatility Scale'}
+                {riskValue > 70 ? 'Customer Frustration Is Rising' : 'Conversation Is Stable'}
               </h4>
               <p className="text-[11px] text-on-surface-variant/75 mt-1 leading-snug">
                 {riskValue > 70 
-                  ? 'SLA breach risk is Critical High. Multi-repeated prompt verification detected.' 
-                  : 'Monitoring ticket queue stream for early signals of negative emotional drift.'}
+                  ? 'High escalation risk detected. Consider quick intervention by a human agent.'
+                  : 'Watching this conversation for early signs of confusion or frustration.'}
               </p>
             </div>
           </section>
 
           {/* 2. Decision Panel Action Widget */}
-          <section className="p-5 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex-1 flex flex-col justify-between select-none">
+          <section className="premium-card lift-on-hover p-5 rounded-2xl flex-1 flex flex-col justify-between select-none">
             <div>
               <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">
-                Decision Panel
+                Recommended Next Action
               </h3>
 
               <div className="space-y-4">
@@ -1593,10 +1746,10 @@ export default function LiveStream({
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-on-surface-variant/70 font-sans">Risk Level</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-28 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div className="w-28 h-2 bg-white/8 rounded-full overflow-hidden">
                       <div 
                         className={`h-full transition-all duration-1000 ${
-                          riskValue > 70 ? 'bg-error shadow-[0_0_8px_#ffb4ab]' : riskValue > 30 ? 'bg-tertiary' : 'bg-primary'
+                          riskValue > 70 ? 'bg-gradient-to-r from-error to-[#ff8c80] shadow-[0_0_10px_#ffb4ab]' : riskValue > 30 ? 'bg-gradient-to-r from-tertiary to-[#ffc58f]' : 'bg-gradient-to-r from-primary to-[#d6a9ff]'
                         }`} 
                         style={{ width: `${riskValue}%` }}
                       ></div>
@@ -1611,21 +1764,21 @@ export default function LiveStream({
                 <div className="bg-white/3 border border-white/5 p-4 rounded-xl relative overflow-hidden mt-2">
                   <span className="font-mono text-[9px] text-on-surface-variant/40 block mb-1 uppercase">Recommended Action</span>
                   <p className="font-sans font-bold text-xs text-white leading-snug">
-                    {isTransferred 
-                    ? `Conversation successfully re-routed to human agent: ${transferredTo}` 
+                    {isTransferred
+                    ? `Conversation has been transferred to: ${transferredTo}`
                     : riskValue > 70 
-                      ? 'Transfer conversation to direct senior human support supervisor' 
+                      ? 'Transfer this conversation to a senior support agent now.'
                       : riskValue > 30
-                        ? 'Monitor closely. Offer empathetic automated renewal options.'
-                        : 'Permit fully autonomous AI responses.'}
+                        ? 'Monitor closely and reply with reassuring, clear guidance.'
+                        : 'AI responses can continue safely at this stage.'}
                   </p>
                 </div>
 
                 {/* Live Telemetry Terminal Console */}
-                <div className="mt-4 border border-white/5 bg-black/45 rounded-xl p-3.5 flex flex-col h-[140px] overflow-hidden relative select-none">
+                <div className="mt-4 border border-white/10 bg-black/35 rounded-xl p-3.5 flex flex-col h-[140px] overflow-hidden relative select-none">
                   <span className="font-mono text-[9px] text-primary block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
                     <Activity className="w-3 h-3 text-primary animate-pulse" />
-                    Live System Telemetry Logs
+                    System Activity Logs
                   </span>
                   <div className="flex-1 overflow-y-auto font-mono text-[10px] text-on-surface-variant/90 space-y-1.5 pr-1 scrollbar-thin">
                     {telemetryLogs.map((log, idx) => (
@@ -1642,10 +1795,10 @@ export default function LiveStream({
             </div>
 
             {/* Execute trigger actions */}
-            <div className="mt-8 grid grid-cols-2 gap-3">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button 
                 onClick={handleSnooze}
-                className="py-3 px-4 font-sans font-bold text-xs text-on-surface-variant bg-white/3 hover:bg-white/5 border border-white/5 hover:text-white rounded-xl transition-all cursor-pointer"
+                className="py-3 px-4 font-sans font-bold text-xs text-on-surface-variant bg-white/6 hover:bg-white/12 border border-white/10 hover:text-white rounded-xl transition-all cursor-pointer"
               >
                 Snooze
               </button>
@@ -1657,11 +1810,18 @@ export default function LiveStream({
                   isTransferred 
                     ? 'bg-white/5 border border-white/10 text-on-surface-variant font-normal opacity-50 cursor-not-allowed'
                     : riskValue >= 30
-                      ? 'bg-gradient-to-r from-[#494bd6] to-[#6f00be] hover:shadow-[0_0_15px_rgba(111,0,190,0.3)] hover:scale-[1.02] cursor-pointer'
+                      ? 'bg-gradient-to-r from-[#5f63ff] to-[#8b31d8] hover:shadow-[0_0_20px_rgba(111,0,190,0.4)] hover:scale-[1.02] cursor-pointer'
                       : 'bg-white/3 opacity-30 cursor-not-allowed text-on-surface-variant'
                 }`}
               >
-                {isTransferred ? 'Transferred' : 'Execute Transfer'}
+                {isTransferred ? 'Transferred' : 'Transfer To Agent'}
+              </button>
+              <button
+                onClick={handleCopyCaseSummary}
+                className="py-3 px-4 rounded-xl font-sans font-bold text-xs bg-primary/10 border border-primary/25 text-primary hover:bg-primary/20 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy Summary
               </button>
             </div>
           </section>
@@ -1670,13 +1830,13 @@ export default function LiveStream({
       </div>
 
       {/* Embedded 2-Column Analytics Visualizations inside Live Stream to match Screenshot 4 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 select-none pt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none pt-3">
         
         {/* Graph Unit 1: Emotion Distribution Custom SVG */}
-        <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between h-64 relative">
+        <div className="premium-card lift-on-hover p-6 rounded-2xl flex flex-col justify-between h-64 relative">
           <div>
             <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">
-              24h Emotion Distribution
+              Emotion Mix (Last 24h)
             </h3>
           </div>
           
@@ -1701,12 +1861,12 @@ export default function LiveStream({
         </div>
 
         {/* Graph Unit 2: Global Sentiment Trendline Custom SVG Graph */}
-        <div className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between h-64 relative overflow-hidden">
+        <div className="premium-card lift-on-hover p-6 rounded-2xl flex flex-col justify-between h-64 relative overflow-hidden">
           <div>
             <h3 className="font-sans text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">
-              Global Sentiment Trendline
+              Sentiment Trend
             </h3>
-            <p className="font-sans text-[11px] text-on-surface-variant/40 leading-none">Mean empathetic indices across 14,282 streams</p>
+            <p className="font-sans text-[11px] text-on-surface-variant/50 leading-none">Average sentiment direction across recent conversations</p>
           </div>
 
           <div className="flex-1 relative mt-4">
@@ -1739,6 +1899,7 @@ export default function LiveStream({
       </div>
 
       {/* Developer Interactive Sandbox Panel */}
+      {isDemoMode && (
       <div className="mt-8 p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col relative overflow-hidden transition-all duration-300">
         <div className="flex justify-between items-center cursor-pointer select-none" onClick={() => setDevPanelOpen(!devPanelOpen)}>
           <div className="flex items-center gap-3">
@@ -1924,6 +2085,7 @@ export default function LiveStream({
           </div>
         )}
       </div>
+      )}
 
     </div>
   );

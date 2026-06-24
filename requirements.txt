@@ -9,3 +9,11 @@ accelerate
 fastapi
 uvicorn
 joblib
+pytest
+python-jose[cryptography]
+passlib[bcrypt]
+sqlalchemy
+email-validator
+authlib
+itsdangerous
+python-dotenv

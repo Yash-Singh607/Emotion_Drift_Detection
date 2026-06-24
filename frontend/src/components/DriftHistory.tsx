@@ -10,13 +10,17 @@ import {
   Sparkles,
   ArrowRight
 } from 'lucide-react';
-import { MOCK_DRIFT_HISTORY } from '../data/mockData';
+import { HistoricalDriftRecord } from '../types';
 
-export default function DriftHistory() {
+interface DriftHistoryProps {
+  records?: HistoricalDriftRecord[];
+}
+
+export default function DriftHistory({ records = [] }: DriftHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
-  const filteredRecords = MOCK_DRIFT_HISTORY.filter(r => 
+  const filteredRecords = records.filter(r => 
     r.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     r.issue.toLowerCase().includes(searchTerm.toLowerCase()) ||
     r.peakEmotion.toLowerCase().includes(searchTerm.toLowerCase())
@@ -30,23 +34,23 @@ export default function DriftHistory() {
     <div className="space-y-6 animate-fadeIn">
       
       {/* Tab Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-white/5 select-none">
+      <div className="premium-card rounded-2xl px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 select-none">
         <div>
-          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Escalation Drift History</h2>
+          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Conversation History</h2>
           <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
-            Archived support session drift records & summaries
+            Past conversations with emotion trend summaries
           </p>
         </div>
 
         {/* Filter Input */}
-        <div className="relative w-full sm:w-64">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-on-surface-variant/55" />
           <input
             type="text"
             placeholder="Search by name, issue, emotion..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white/3 border border-white/5 text-xs text-white placeholder:text-on-surface-variant/40 rounded-xl py-2.5 pl-9 pr-4 focus:ring-1 focus:ring-primary/20 outline-none transition-all"
+            className="w-full bg-white/5 border border-white/10 text-xs text-white placeholder:text-on-surface-variant/40 rounded-xl py-2.5 pl-9 pr-4 focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
         </div>
       </div>
@@ -54,7 +58,7 @@ export default function DriftHistory() {
       {/* List Container */}
       <div className="space-y-3">
         {filteredRecords.length === 0 ? (
-          <div className="p-12 text-center bg-white/3 rounded-2xl border border-white/5 font-sans text-sm text-on-surface-variant/60 select-none">
+          <div className="premium-card rounded-2xl p-12 text-center font-sans text-sm text-on-surface-variant/60 select-none">
             No archived records found matching search filters.
           </div>
         ) : (
@@ -64,10 +68,10 @@ export default function DriftHistory() {
             return (
               <div 
                 key={record.id}
-                className={`rounded-2xl border transition-all duration-300 ${
+                className={`rounded-2xl border transition-all duration-300 lift-on-hover ${
                   isExpanded 
-                    ? 'bg-[#1b2029]/80 border-primary/20 shadow-[0_4px_24px_rgba(99,102,241,0.06)]' 
-                    : 'bg-white/3 border-white/5 hover:bg-white/5 hover:border-white/10'
+                    ? 'premium-card border-primary/30 shadow-[0_8px_24px_rgba(99,102,241,0.10)]'
+                    : 'premium-card border-white/12 hover:border-white/20'
                 }`}
               >
                 {/* Trigger Row Summary */}
@@ -92,7 +96,7 @@ export default function DriftHistory() {
                   <div className="flex items-center gap-5">
                     {/* Peak Emotion Tag */}
                     <div className="text-right">
-                      <span className="font-mono text-[9px] text-[#94a3b8]/30 block uppercase font-bold">PEAK_EMOTION</span>
+                      <span className="font-mono text-[9px] text-[#94a3b8]/30 block uppercase font-bold">Peak Emotion</span>
                       <span className={`text-xs font-sans font-extrabold ${
                         (record.peakEmotion === 'ANGRY' || record.peakEmotion === 'FRUSTRATED') 
                           ? 'text-error' 
@@ -106,7 +110,7 @@ export default function DriftHistory() {
 
                     {/* Mean Drift Score */}
                     <div className="text-right hidden sm:block">
-                      <span className="font-mono text-[9px] text-[#94a3b8]/30 block uppercase font-bold">AVG_DRIFT</span>
+                      <span className="font-mono text-[9px] text-[#94a3b8]/30 block uppercase font-bold">Avg Risk</span>
                       <span className="font-mono text-xs text-white font-bold">
                         {record.meanDriftScore}
                       </span>
@@ -159,7 +163,7 @@ export default function DriftHistory() {
                       <div className="md:col-span-8 bg-white/3 border border-white/5 p-4 rounded-xl space-y-2">
                         <div className="flex items-center gap-2 text-primary">
                           <Sparkles className="w-3.5 h-3.5" />
-                          <span className="font-mono text-[9px] uppercase tracking-wider font-bold">Sentience AI Recipient Summary</span>
+                          <span className="font-mono text-[9px] uppercase tracking-wider font-bold">AI Summary</span>
                         </div>
                         <p className="text-on-surface-variant/90 leading-relaxed text-xs">
                           {record.conversationSummary}

@@ -19,11 +19,11 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
     <div className="space-y-6 animate-fadeIn">
       
       {/* View Header */}
-      <div className="flex justify-between items-center pb-4 border-b border-white/5 select-none">
+      <div className="premium-card rounded-2xl px-5 py-4 flex justify-between items-center select-none">
         <div>
-          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Representative Roster Desk</h2>
+          <h2 className="font-sans text-xl md:text-2xl font-bold text-white">Support Team</h2>
           <p className="font-mono text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5">
-            Empathetic reaction metrics & active queue volumes
+            Agent availability, response speed, and conversation load
           </p>
         </div>
       </div>
@@ -33,7 +33,7 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
         {teamMembers.map((member) => (
           <div 
             key={member.id}
-            className="p-6 rounded-2xl bg-[#1b2029]/40 border border-white/10 flex flex-col justify-between space-y-6 hover:border-primary/20 transition-all duration-300 relative group"
+            className="premium-card lift-on-hover p-6 rounded-2xl flex flex-col justify-between space-y-6 relative group"
           >
             {/* Context Header */}
             <div className="flex justify-between items-start select-none">
@@ -65,12 +65,12 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
               </div>
 
               {/* Status Toggler button */}
-              <button 
+              <button
                 onClick={() => onToggleStatus(member.id)}
-                className="font-mono text-[9px] px-2 py-1 bg-white/3 hover:bg-white/5 border border-white/5 rounded text-on-surface-variant hover:text-white transition-all cursor-pointer"
+                className="font-mono text-[9px] px-2.5 py-1 bg-white/5 hover:bg-white/12 border border-white/10 rounded text-on-surface-variant hover:text-white transition-all cursor-pointer"
                 title="Change active roster status"
               >
-                TOGGLE DND
+                Change status
               </button>
             </div>
 
@@ -78,7 +78,7 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
             <div className="grid grid-cols-2 gap-4 border-t border-b border-white/5 py-4 font-sans text-left">
               {/* CSAT Score */}
               <div className="space-y-1">
-                <span className="font-mono text-[9px] text-[#94a3b8]/40 block uppercase font-bold select-none">CUSTOMER_CSAT</span>
+                <span className="font-mono text-[9px] text-[#94a3b8]/40 block uppercase font-bold select-none">CSAT</span>
                 <div className="flex items-center gap-1">
                   <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
                   <span className="text-white text-xs font-bold font-mono">
@@ -89,7 +89,7 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
 
               {/* Reaction Latency */}
               <div className="space-y-1">
-                <span className="font-mono text-[9px] text-[#94a3b8]/40 block uppercase font-bold select-none">AVG_REPLY</span>
+                <span className="font-mono text-[9px] text-[#94a3b8]/40 block uppercase font-bold select-none">Avg Reply</span>
                 <div className="flex items-center gap-1 text-on-surface-variant/80">
                   <Clock className="w-3.5 h-3.5 text-primary" />
                   <span className="text-white text-xs font-bold font-mono">
@@ -121,10 +121,10 @@ export default function Team({ teamMembers, onToggleStatus }: TeamProps) {
       </div>
 
       {/* Roster Guidelines note */}
-      <div className="p-4 rounded-xl bg-primary-container/5 border border-primary/10 flex items-start gap-3 text-xs font-sans text-on-surface-variant select-none">
+      <div className="premium-card rounded-xl p-4 border border-primary/20 flex items-start gap-3 text-xs font-sans text-on-surface-variant select-none">
         <UserCheck className="w-4 h-4 text-primary animate-pulse shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          Sentience AI automatically scans the Representative Roster in real time. Escalated conversations transferred through the Decision Panel are automatically assigned onto representatives carrying low active workloads who are labeled as <strong className="text-primary">Available</strong>.
+          The system monitors team status in real time. Escalated conversations are routed to agents with lower active load and <strong className="text-primary">Available</strong> status.
         </p>
       </div>
 

@@ -25,14 +25,14 @@ export default function NewAnalysisModal({ onClose, onSelectScenario }: NewAnaly
 
       {/* Dialog box wrapper */}
       <div 
-        className="w-full max-w-xl bg-[#1b2029] border border-white/10 rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-scaleUp text-left"
+        className="w-full max-w-2xl premium-card rounded-3xl shadow-2xl overflow-hidden relative z-10 animate-scaleUp text-left"
         id="new-analysis-modal"
       >
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-white/5 flex justify-between items-center bg-white/3">
+        <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-white/5">
           <div className="flex items-center gap-2.5">
             <Activity className="w-5 h-5 text-primary animate-pulse" />
-            <span className="font-sans font-bold text-base text-white">Initialize New Analysis Stream</span>
+            <span className="font-sans font-bold text-base text-white">Start Scenario Simulation</span>
           </div>
 
           <button 
@@ -46,7 +46,7 @@ export default function NewAnalysisModal({ onClose, onSelectScenario }: NewAnaly
         {/* Modal List Body */}
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <p className="text-xs text-on-surface-variant/75 leading-relaxed">
-            Select an escalation template or friction scenario to feed into the active monitoring pipeline. Sentience AI will automatically process dialogue vectors and predict real-time emotions.
+            Choose a realistic customer scenario to test your live monitoring flow and escalation handling.
           </p>
 
           <div className="space-y-3">
@@ -57,7 +57,7 @@ export default function NewAnalysisModal({ onClose, onSelectScenario }: NewAnaly
                 <div 
                   key={idx}
                   onClick={() => onSelectScenario(item)}
-                  className="p-5 bg-white/3 border border-white/5 hover:border-primary/30 rounded-2xl cursor-pointer hover:bg-white/5 group transition-all duration-300"
+                  className="p-5 bg-white/5 border border-white/10 hover:border-primary/35 rounded-2xl cursor-pointer hover:bg-white/10 group transition-all duration-300 lift-on-hover"
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div>
@@ -79,8 +79,8 @@ export default function NewAnalysisModal({ onClose, onSelectScenario }: NewAnaly
                   </div>
 
                   {/* Seed text content preview */}
-                  <div className="mt-3.5 px-3 py-2 bg-[#090e17]/55 border border-white/5 rounded-xl font-mono text-[10px] text-on-surface-variant/60 truncate">
-                    SEED_TEXT: "{item.startText}"
+                  <div className="mt-3.5 px-3 py-2 bg-[#090e17]/65 border border-white/10 rounded-xl font-mono text-[10px] text-on-surface-variant/60 truncate">
+                    Starter message: "{item.startText}"
                   </div>
                 </div>
               );
@@ -89,7 +89,7 @@ export default function NewAnalysisModal({ onClose, onSelectScenario }: NewAnaly
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4.5 border-t border-white/5 bg-white/3 flex justify-end font-sans text-xs">
+        <div className="px-6 py-4.5 border-t border-white/10 bg-white/5 flex justify-end font-sans text-xs">
           <button 
             onClick={onClose}
             className="py-2.5 px-4 rounded-xl border border-white/5 text-on-surface-variant/70 hover:text-white hover:bg-white/5 transition-all text-sm font-semibold cursor-pointer"
