@@ -1,6 +1,6 @@
 # Enterprise-Grade Sentiment Drift Detection System (GOEMO-V2)
 
-An advanced, real-time customer experience analytics platform engineered to detect emotional trajectory shifts in support dialogues. Powered by a fine-tuned **DistilBERT Transformer model** trained on the 28-class GoEmotions dataset, the system performs vectorized drift calculations and predictive SLA risk analysis. Designed for high-performance operations, the project supports two deployment topologies: a scalable **Web Application** and a fully containerized **Electron Desktop Client** with an offline portable backend.
+An advanced, real-time customer experience analytics platform engineered to detect emotional trajectory shifts in support dialogues. Powered by a fine-tuned **DistilBERT Transformer model** trained on the 28-class GoEmotions dataset, the system performs vectorized drift calculations and predictive SLA risk analysis.
 
 ---
 
